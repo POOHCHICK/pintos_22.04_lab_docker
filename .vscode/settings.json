@@ -1,0 +1,40 @@
+{
+    // ==================================
+    // 에디터 기본 설정
+    // ==================================
+    "editor.fontSize": 13,
+    "editor.tabSize": 2,
+    // "editor.wordWrap": "on", // 긴 줄 자동 줄바꿈
+    // ==================================
+    // 파일 관리 및 저장 설정
+    // ==================================
+    // 특정 파일을 지정된 언어로 인식하도록 설정
+    "files.associations": {
+        "disk.h": "c",
+        "malloc.h": "c",
+        "thread.h": "c",
+        "limits.h": "c",
+        "stdbool.h": "c",
+        "tests.h": "c",
+        "*.inc": "c",
+        "lib.h": "c",
+        "inode.h": "c",
+        "interrupt.h": "c",
+        "file.h": "c",
+        "off_t.h": "c",
+        "loader.h": "c",
+        "filesys.h": "c",
+        "syscall.h": "c",
+        "synch.h": "c",
+        "mmu.h": "c",
+        "types.h": "c",
+        "gdt.h": "c",
+        "process.h": "c",
+        "flags.h": "c",
+        "vaddr.h": "c",
+        "util.h": "c",
+        "stddef.h": "c",
+        "main.h": "c",
+        "init.h": "c"
+    },
+}

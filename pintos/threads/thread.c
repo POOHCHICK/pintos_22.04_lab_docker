@@ -30,6 +30,8 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -107,6 +109,7 @@ void thread_init(void)
     /* Init the globla thread context */
     lock_init(&tid_lock);
     list_init(&ready_list);
+    list_init(&sleep_list);
     list_init(&destruction_req);
 
     /* Set up a thread structure for the running thread. */
@@ -149,6 +152,49 @@ void thread_tick(void)
 
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE) intr_yield_on_return();
+}
+
+void thread_sleep(int64_t ticks)
+{
+    enum intr_level old_level = intr_disable();
+
+    struct thread *curr = thread_current();
+    curr->wakeup_tick = ticks;
+
+    list_push_back(&sleep_list, &curr->elem);
+    list_sort(&sleep_list, wakeup_tick_less, NULL);
+
+    thread_block();
+
+    intr_set_level(old_level);
+}
+
+static bool wakeup_tick_less(const struct list_elem *a_,
+                             const struct list_elem *b_, void *aux UNUSED)
+{
+    const struct thread *a = list_entry(a_, struct thread, elem);
+    const struct thread *b = list_entry(b_, struct thread, elem);
+
+    return a->wakeup_tick < b->wakeup_tick;
+}
+
+void thread_wakeup(void)
+{
+    while (!list_empty(&sleep_list))
+    {
+        struct thread *t =
+            list_entry(list_front(&sleep_list), struct thread, elem);
+
+        if (t->wakeup_tick <= timer_ticks())
+        {
+            list_pop_front(&sleep_list);
+            thread_unblock(t);
+        }
+        else
+        {
+            break;
+        }
+    }
 }
 
 /* Prints thread statistics. */

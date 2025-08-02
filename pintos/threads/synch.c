@@ -196,12 +196,19 @@ void lock_acquire(struct lock *lock)
 
     if (lock->holder != NULL)
     {
+        /* 현재 스레드 내 lock 정보를 등록한다 */
         curr->wait_on_lock = lock;
         /* STEP: Prioriy donation */
         if (curr->priority > lock->holder->priority)
         {
+            /*
+             * lock을 들고 있는 스레드의 우선순위를 현재 스레드의 우선순위로
+             * 변경한다.
+             */
             lock->holder->priority = curr->priority;
-            /* TODO: add donor list */
+            list_insert_ordered(&lock->holder->donor_list,
+                                &lock->holder->donor_elem, priority_large,
+                                NULL);
         }
     }
 
@@ -238,7 +245,20 @@ void lock_release(struct lock *lock)
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
 
-    lock->holder->priority = lock->holder->original_priority;
+    /* STEP: 기부받았던 priority를 복원하고 lock을 해제한다 */
+
+    if (!list_empty(&lock->holder->donor_list))
+    {
+        for (struct list_elem *e = list_begin(&lock->holder->donor_list);
+             e != list_end(&lock->holder->donor_list); e = list_next(e))
+        {
+            struct thread *donor_thread =
+                list_entry(e, struct thread, donor_elem);
+            donor_thread->priority = donor_thread->original_priority;
+        }
+        lock->holder->priority = lock->holder->original_priority;
+    }
+
     lock->holder = NULL;
     sema_up(&lock->semaphore);
     thread_yield();

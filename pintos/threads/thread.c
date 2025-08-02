@@ -372,8 +372,16 @@ void thread_set_priority(int new_priority)
 {
     struct thread *curr = thread_current();
 
+    /*
+     * 현재 스레드의 우선순위를 새로운 우선순위로 변경하고
+     * 현재 스레드의 원본 우선순위도 새로운 우선순위로 변경한다
+     */
     curr->priority = new_priority;
     curr->original_priority = new_priority;
+
+    /* 고려 사항 (?)
+     * 1. 현재 스레드의 priority 값이 new_priority보다 작을 때
+     * 2. 기부하는 케이스가 아닌경우는?  */
 
     if (!list_empty(&ready_list))
     {
@@ -484,6 +492,7 @@ static void init_thread(struct thread *t, const char *name, int priority)
     t->priority = priority;
     t->original_priority = priority;
     t->wait_on_lock = NULL;
+    list_init(&t->donor_list);
     t->magic = THREAD_MAGIC;
 }
 

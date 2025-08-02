@@ -159,7 +159,7 @@ void thread_sleep(int64_t ticks)
     enum intr_level old_level = intr_disable();
 
     struct thread *curr = thread_current();
-    curr->wakeup_tick = ticks;
+    curr->wakeup_tick = timer_ticks() + ticks;
 
     list_push_back(&sleep_list, &curr->elem);
     list_sort(&sleep_list, wakeup_tick_less, NULL);

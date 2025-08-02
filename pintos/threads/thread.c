@@ -257,7 +257,10 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
 
     /* Add to run queue. */
     thread_unblock(t);
-    if (t->priority > thread_current()->priority) thread_yield();
+    if (t->priority > thread_current()->priority)
+    {
+        thread_yield();
+    }
 
     return tid;
 }
@@ -363,7 +366,7 @@ void thread_yield(void)
 /*
  * Sets the current thread's priority to NEW_PRIORITY.
  * 우선순위가 변경이 일어난다면 변경된 우선순위에 따라 새롭게 정렬해준다.
- * 새롭게 정렬된 뒤 현재 실행중인 스레드의 우선순위보다 
+ * 새롭게 정렬된 뒤 현재 실행중인 스레드의 우선순위보다
  * 대기하고 있는 스레드의 우선순위가 높다면 실행중인 스레드를 변경한다.
  */
 void thread_set_priority(int new_priority)
@@ -479,6 +482,8 @@ static void init_thread(struct thread *t, const char *name, int priority)
     strlcpy(t->name, name, sizeof t->name);
     t->tf.rsp = (uint64_t) t + PGSIZE - sizeof(void *);
     t->priority = priority;
+    t->original_priority = priority;
+    t->wait_on_lock = NULL;
     t->magic = THREAD_MAGIC;
 }
 

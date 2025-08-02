@@ -93,10 +93,15 @@ struct thread
     enum thread_status status; /* Thread state. */
     char name[16];             /* Name (for debugging purposes). */
     int priority;              /* Priority. */
+    int original_priority;     /* Origninal Priority. */
     int64_t wakeup_tick;
+    struct list donor_list;
+    struct lock
+        *wait_on_lock; /* 현재 스레드가 어떤 lock을 가지고 있는지의 정보 */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem; /* List element. */
+    struct list_elem donor_elem;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

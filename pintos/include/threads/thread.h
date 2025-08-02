@@ -129,8 +129,8 @@ void thread_tick(void);
 void thread_sleep(int64_t ticks);
 bool wakeup_tick_less(const struct list_elem *a_, const struct list_elem *b_,
                       void *aux UNUSED);
-bool priority_less(const struct list_elem *a_, const struct list_elem *b_,
-                   void *aux UNUSED);
+bool priority_large(const struct list_elem *a_, const struct list_elem *b_,
+                    void *aux UNUSED);
 void thread_wakeup(void);
 
 void thread_print_stats(void);

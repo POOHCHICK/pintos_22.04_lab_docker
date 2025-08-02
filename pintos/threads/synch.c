@@ -70,7 +70,7 @@ void sema_down(struct semaphore *sema)
     while (sema->value == 0)
     {
         list_insert_ordered(&sema->waiters, &thread_current()->elem,
-                            priority_less, NULL);
+                            priority_large, NULL);
         thread_block();
     }
     sema->value--;
@@ -200,7 +200,6 @@ void lock_acquire(struct lock *lock)
         /* STEP: Prioriy donation */
         if (curr->priority > lock->holder->priority)
         {
-            lock->holder->original_priority = lock->holder->priority;
             lock->holder->priority = curr->priority;
             /* TODO: add donor list */
         }

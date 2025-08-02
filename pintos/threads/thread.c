@@ -161,8 +161,7 @@ void thread_sleep(int64_t ticks)
     struct thread *curr = thread_current();
     curr->wakeup_tick = timer_ticks() + ticks;
 
-    list_push_back(&sleep_list, &curr->elem);
-    list_sort(&sleep_list, wakeup_tick_less, NULL);
+    list_insert_ordered(&sleep_list, &curr->elem, wakeup_tick_less, NULL);
 
     thread_block();
 
@@ -178,8 +177,8 @@ bool wakeup_tick_less(const struct list_elem *a_, const struct list_elem *b_,
     return a->wakeup_tick < b->wakeup_tick;
 }
 
-bool priority_less(const struct list_elem *a_, const struct list_elem *b_,
-                   void *aux UNUSED)
+bool priority_large(const struct list_elem *a_, const struct list_elem *b_,
+                    void *aux UNUSED)
 {
     const struct thread *a = list_entry(a_, struct thread, elem);
     const struct thread *b = list_entry(b_, struct thread, elem);
@@ -295,7 +294,7 @@ void thread_unblock(struct thread *t)
 
     old_level = intr_disable();
     ASSERT(t->status == THREAD_BLOCKED);
-    list_insert_ordered(&ready_list, &t->elem, priority_less, NULL);
+    list_insert_ordered(&ready_list, &t->elem, priority_large, NULL);
     t->status = THREAD_READY;
     intr_set_level(old_level);
 }
@@ -358,7 +357,7 @@ void thread_yield(void)
 
     old_level = intr_disable();
     if (curr != idle_thread)
-        list_insert_ordered(&ready_list, &curr->elem, priority_less, NULL);
+        list_insert_ordered(&ready_list, &curr->elem, priority_large, NULL);
     do_schedule(THREAD_READY);
     intr_set_level(old_level);
 }
@@ -374,10 +373,11 @@ void thread_set_priority(int new_priority)
     struct thread *curr = thread_current();
 
     curr->priority = new_priority;
+    curr->original_priority = new_priority;
 
     if (!list_empty(&ready_list))
     {
-        list_sort(&ready_list, priority_less, NULL);
+        list_sort(&ready_list, priority_large, NULL);
         struct thread *t =
             list_entry(list_front(&ready_list), struct thread, elem);
 

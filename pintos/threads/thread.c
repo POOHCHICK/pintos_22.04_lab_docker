@@ -169,8 +169,8 @@ void thread_sleep(int64_t ticks)
     intr_set_level(old_level);
 }
 
-static bool wakeup_tick_less(const struct list_elem *a_,
-                             const struct list_elem *b_, void *aux UNUSED)
+bool wakeup_tick_less(const struct list_elem *a_, const struct list_elem *b_,
+                      void *aux UNUSED)
 {
     const struct thread *a = list_entry(a_, struct thread, elem);
     const struct thread *b = list_entry(b_, struct thread, elem);
@@ -178,8 +178,8 @@ static bool wakeup_tick_less(const struct list_elem *a_,
     return a->wakeup_tick < b->wakeup_tick;
 }
 
-static bool priority_less(const struct list_elem *a_,
-                          const struct list_elem *b_, void *aux UNUSED)
+bool priority_less(const struct list_elem *a_, const struct list_elem *b_,
+                   void *aux UNUSED)
 {
     const struct thread *a = list_entry(a_, struct thread, elem);
     const struct thread *b = list_entry(b_, struct thread, elem);

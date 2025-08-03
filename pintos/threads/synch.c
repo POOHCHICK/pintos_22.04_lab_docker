@@ -206,9 +206,8 @@ void lock_acquire(struct lock *lock)
              * 변경한다.
              */
             lock->holder->priority = curr->priority;
-            list_insert_ordered(&lock->holder->donor_list,
-                                &lock->holder->donor_elem, priority_large,
-                                NULL);
+            list_insert_ordered(&lock->holder->donor_list, &curr->donor_elem,
+                                priority_large, NULL);
         }
     }
 

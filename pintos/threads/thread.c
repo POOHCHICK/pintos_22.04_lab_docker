@@ -376,8 +376,19 @@ void thread_set_priority(int new_priority)
      * 현재 스레드의 우선순위를 새로운 우선순위로 변경하고
      * 현재 스레드의 원본 우선순위도 새로운 우선순위로 변경한다
      */
-    curr->priority = new_priority;
+
     curr->original_priority = new_priority;
+    if (!list_empty(&curr->donor_list))
+    {
+        if (new_priority > curr->priority)
+        {
+            curr->priority = new_priority;
+        }
+    }
+    else
+    {
+        curr->priority = new_priority;
+    }
 
     /* 고려 사항 (?)
      * 1. 현재 스레드의 priority 값이 new_priority보다 작을 때

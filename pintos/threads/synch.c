@@ -255,6 +255,7 @@ void lock_release(struct lock *lock)
             struct thread *donor_thread =
                 list_entry(e, struct thread, donor_elem);
             donor_thread->priority = donor_thread->original_priority;
+            list_remove(&donor_thread->donor_elem);
         }
         lock->holder->priority = lock->holder->original_priority;
     }

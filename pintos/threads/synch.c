@@ -198,17 +198,17 @@ void lock_acquire(struct lock *lock)
     {
         /* 현재 스레드 내 lock 정보를 등록한다 */
         curr->wait_on_lock = lock;
-        /* STEP: Prioriy donation */
-        if (curr->priority > lock->holder->priority)
-        {
-            /*
-             * lock을 들고 있는 스레드의 우선순위를 현재 스레드의 우선순위로
-             * 변경한다.
-             */
-            lock->holder->priority = curr->priority;
-        }
         list_insert_ordered(&lock->holder->donor_list, &curr->donor_elem,
                             priority_large, NULL);
+
+        while (curr->wait_on_lock != NULL)
+        {
+            if (curr->priority > curr->wait_on_lock->holder->priority)
+            {
+                curr->wait_on_lock->holder->priority = curr->priority;
+            }
+            curr = curr->wait_on_lock->holder;
+        }
     }
 
     sema_down(&lock->semaphore);

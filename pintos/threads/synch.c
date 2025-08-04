@@ -178,6 +178,20 @@ void lock_init(struct lock *lock)
     sema_init(&lock->semaphore, 1);
 }
 
+void do_donation()
+{
+    struct thread *curr = thread_current();
+
+    while (curr->wait_on_lock != NULL)
+    {
+        if (curr->priority > curr->wait_on_lock->holder->priority)
+        {
+            curr->wait_on_lock->holder->priority = curr->priority;
+        }
+        curr = curr->wait_on_lock->holder;
+    }
+}
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -201,19 +215,12 @@ void lock_acquire(struct lock *lock)
         list_insert_ordered(&lock->holder->donor_list, &curr->donor_elem,
                             priority_large, NULL);
 
-        while (curr->wait_on_lock != NULL)
-        {
-            if (curr->priority > curr->wait_on_lock->holder->priority)
-            {
-                curr->wait_on_lock->holder->priority = curr->priority;
-            }
-            curr = curr->wait_on_lock->holder;
-        }
+        do_donation();
     }
 
     sema_down(&lock->semaphore);
-    lock->holder = thread_current();
-    thread_current()->wait_on_lock = NULL;
+    lock->holder = curr;
+    curr->wait_on_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -234,6 +241,44 @@ bool lock_try_acquire(struct lock *lock)
     return success;
 }
 
+/* 락을 제거한다. 락을 제거하고 싶은 스레드는 현재 스레드이다. */
+void lock_remove(struct lock *lock)
+{
+    struct thread *curr = thread_current();
+    struct thread *donor_thread = NULL;
+
+    curr->priority = curr->original_priority;
+
+    if (!list_empty(&curr->donor_list))
+    {
+        for (struct list_elem *e = list_begin(&curr->donor_list);
+             e != list_end(&curr->donor_list); e = list_next(e))
+        {
+            donor_thread = list_entry(e, struct thread, donor_elem);
+
+            if (donor_thread->wait_on_lock == lock)
+            {
+                list_remove(&donor_thread->donor_elem);
+            }
+        }
+    }
+}
+
+void restore_priority()
+{
+    struct thread *curr = thread_current();
+
+    if (!list_empty(&curr->donor_list))
+    {
+        struct thread *front = list_entry(list_front(&curr->donor_list),
+                                          struct thread, donor_elem);
+        if (front->priority > curr->priority)
+        {
+            curr->priority = front->priority;
+        }
+    }
+}
+
 /* Releases LOCK, which must be owned by the current thread.
    This is lock_release function.
 
@@ -247,35 +292,8 @@ void lock_release(struct lock *lock)
 
     /* STEP: 기부받았던 priority를 복원하고 lock을 해제한다 */
 
-    if (!list_empty(&lock->holder->donor_list))
-    {
-        for (struct list_elem *e = list_begin(&lock->holder->donor_list);
-             e != list_end(&lock->holder->donor_list); e = list_next(e))
-        {
-            struct thread *donor_thread =
-                list_entry(e, struct thread, donor_elem);
-
-            if (donor_thread->wait_on_lock == lock)
-            {
-                // donor_thread->priority = donor_thread->original_priority;
-                list_remove(&donor_thread->donor_elem);
-            }
-        }
-        lock->holder->priority = lock->holder->original_priority;
-    }
-
-    if (!list_empty(&lock->holder->donor_list))
-    {
-        if (list_entry(list_front(&lock->holder->donor_list), struct thread,
-                       donor_elem)
-                ->priority > lock->holder->priority)
-        {
-            lock->holder->priority =
-                list_entry(list_front(&lock->holder->donor_list), struct thread,
-                           donor_elem)
-                    ->priority;
-        }
-    }
+    lock_remove(lock);
+    restore_priority();
 
     lock->holder = NULL;
     sema_up(&lock->semaphore);

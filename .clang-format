@@ -25,3 +25,5 @@ AlignTrailingComments: true       # 줄 끝에 오는 주석들을 세로로 정
 
 # --- C++11 이상 기능 호환성 (C언어 프로젝트에서도 호환) ---
 Standard: Auto                    # 코드에 맞는 C/C++ 표준을 자동으로 감지
+
+SortIncludes: false

@@ -206,13 +206,14 @@ void lock_acquire(struct lock *lock)
              * 변경한다.
              */
             lock->holder->priority = curr->priority;
-            list_insert_ordered(&lock->holder->donor_list, &curr->donor_elem,
-                                priority_large, NULL);
         }
+        list_insert_ordered(&lock->holder->donor_list, &curr->donor_elem,
+                            priority_large, NULL);
     }
 
     sema_down(&lock->semaphore);
     lock->holder = curr;
+    curr->wait_on_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

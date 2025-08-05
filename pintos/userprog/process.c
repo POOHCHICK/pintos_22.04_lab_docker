@@ -11,6 +11,7 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "intrinsic.h"
+#include "lib/string.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -52,6 +53,9 @@ tid_t process_create_initd(const char *file_name)
     strlcpy(fn_copy, file_name, PGSIZE);
 
     /* Create a new thread to execute FILE_NAME. */
+    char *unused_ptr;
+    strtok_r(file_name, " ", &unused_ptr);
+
     tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
     if (tid == TID_ERROR) palloc_free_page(fn_copy);
     return tid;
@@ -197,7 +201,9 @@ int process_wait(tid_t child_tid UNUSED)
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
-    return -1;
+    // while (1)
+    //     ;
+    thread_sleep(500);
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -324,6 +330,16 @@ static bool load(const char *file_name, struct intr_frame *if_)
     off_t file_ofs;
     bool success = false;
     int i;
+    char *save_ptr;
+    char *argv[MAX_ARGS];
+    char *token;
+    int argc = 0;
+
+    for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+         token = strtok_r(NULL, " ", &save_ptr))
+    {
+        argv[argc++] = token;
+    }
 
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create();
@@ -411,11 +427,46 @@ static bool load(const char *file_name, struct intr_frame *if_)
     /* Set up stack. */
     if (!setup_stack(if_)) goto done;
 
+    /* Set up arguments on user stack */
+
+    char *args_start_addr[128];
+
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        size_t args_len = strlen(argv[i]) + 1;
+        if_->rsp = if_->rsp - args_len;
+        memcpy(if_->rsp, argv[i], args_len);
+        // memcpy(args_start_addr[i], if_->rsp, 8);
+        args_start_addr[i] = if_->rsp;
+    }
+
+    size_t pad_size = 8 - (if_->rsp % 8);
+
+    if (pad_size)
+    {
+        if_->rsp -= pad_size;
+        memset(if_->rsp, 0, pad_size);
+    }
+
+    if_->rsp -= 8;
+    memset(if_->rsp - 8, "\0", 8);
+
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        // memcpy(if_->rsp - 8, args_start_addr[i], 8);
+        if_->rsp -= 8;
+        if_->rsp = args_start_addr[i];
+    }
+
+    if_->R.rdi = argc;
+    if_->R.rsi = if_->rsp;
+
+    /* set fake return address */
+    if_->rsp -= 8;
+    memset(if_->rsp - 8, "\0", 8);
+
     /* Start address. */
     if_->rip = ehdr.e_entry;
-
-    /* TODO: Your code goes here.
-     * TODO: Implement argument passing (see project2/argument_passing.html). */
 
     success = true;
 

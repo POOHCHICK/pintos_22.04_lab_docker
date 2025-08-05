@@ -436,7 +436,6 @@ static bool load(const char *file_name, struct intr_frame *if_)
         size_t args_len = strlen(argv[i]) + 1;
         if_->rsp = if_->rsp - args_len;
         memcpy(if_->rsp, argv[i], args_len);
-        // memcpy(args_start_addr[i], if_->rsp, 8);
         args_start_addr[i] = if_->rsp;
     }
 
@@ -453,7 +452,6 @@ static bool load(const char *file_name, struct intr_frame *if_)
 
     for (int i = argc - 1; i >= 0; i--)
     {
-        // memcpy(if_->rsp - 8, args_start_addr[i], 8);
         if_->rsp -= 8;
         if_->rsp = args_start_addr[i];
     }

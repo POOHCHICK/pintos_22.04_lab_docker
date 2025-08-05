@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -98,10 +99,18 @@ struct thread
     struct list donor_list;
     struct lock *wait_on_lock; /* 현재 스레드가 어떤 lock을 대기하고 있는지에
                                   대한 정보 */
+    struct list child_list;
+    struct thread *parent;
+    struct intr_frame *parent_if;
+    struct semaphore fork_sema;
+    struct semaphore wait_sema;
+    struct semaphore exit_sema;
+    int exit_status;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem; /* List element. */
     struct list_elem donor_elem;
+    struct list_elem child_elem;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

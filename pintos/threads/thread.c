@@ -241,6 +241,8 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
 
     /* Initialize thread. */
     init_thread(t, name, priority);
+    list_push_back(&thread_current()->child_list, &t->child_elem);
+    t->parent = thread_current();
     tid = t->tid = allocate_tid();
 
     /* Call the kernel_thread if it scheduled.
@@ -524,6 +526,10 @@ static void init_thread(struct thread *t, const char *name, int priority)
     t->original_priority = priority;
     t->wait_on_lock = NULL;
     list_init(&t->donor_list);
+    list_init(&t->child_list);
+    sema_init(&t->fork_sema, 0);
+    sema_init(&t->wait_sema, 0);
+    sema_init(&t->exit_sema, 0);
     t->magic = THREAD_MAGIC;
 }
 

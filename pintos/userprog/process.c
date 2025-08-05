@@ -76,10 +76,22 @@ static void initd(void *f_name)
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
+tid_t process_fork(const char *name, struct intr_frame *if_)
 {
     /* Clone current thread to new thread.*/
-    return thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
+    struct thread *parent = thread_current();
+    parent->parent_if = if_;
+
+    tid_t child_tid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+
+    if (child_tid == -1)
+    {
+        return child_tid;
+    }
+
+    sema_down(&parent->fork_sema);
+
+    return child_tid;
 }
 
 #ifndef VM
@@ -124,12 +136,12 @@ static void __do_fork(void *aux)
     struct intr_frame if_;
     struct thread *parent = (struct thread *) aux;
     struct thread *current = thread_current();
-    /* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-    struct intr_frame *parent_if;
+    struct intr_frame *parent_if = parent->parent_if;
     bool succ = true;
 
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
+    if_.R.rax = 0;
 
     /* 2. Duplicate PT */
     current->pml4 = pml4_create();
@@ -152,8 +164,13 @@ static void __do_fork(void *aux)
     process_init();
 
     /* Finally, switch to the newly created process. */
-    if (succ) do_iret(&if_);
+    if (succ)
+    {
+        sema_up(&current->fork_sema);
+        do_iret(&if_);
+    }
 error:
+    sema_up(&current->fork_sema);
     thread_exit();
 }
 
@@ -187,6 +204,22 @@ int process_exec(void *f_name)
     NOT_REACHED();
 }
 
+struct thread *process_get_child(tid_t child_tid)
+{
+    for (struct list_elem *e = list_begin(&thread_current()->child_list);
+         e != list_end(&thread_current()->child_list); e = list_next(e))
+    {
+        struct thread *child = list_entry(e, struct thread, child_elem);
+
+        if (child->tid == child_tid)
+        {
+            return child;
+        }
+    }
+
+    return NULL;
+}
+
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
  * exception), returns -1.  If TID is invalid or if it was not a
@@ -198,22 +231,28 @@ int process_exec(void *f_name)
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED)
 {
-    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-     * XXX:       to add infinite loop here before
-     * XXX:       implementing the process_wait. */
-    // while (1)
-    //     ;
-    thread_sleep(500);
+    struct thread *child = process_get_child(child_tid);
+    if (child == NULL)
+    {
+        return -1;
+    }
+
+    sema_down(&child->wait_sema);
+
+    sema_up(&child->exit_sema);
+
+    return child_tid;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void)
 {
     struct thread *curr = thread_current();
-    /* TODO: Your code goes here.
-     * TODO: Implement process termination message (see
-     * TODO: project2/process_termination.html).
-     * TODO: We recommend you to implement process resource cleanup here. */
+    printf("%s: exit(%d)\n", curr->name, curr->exit_status);
+
+    sema_up(&curr->wait_sema);
+
+    sema_down(&curr->exit_sema);
 
     process_cleanup();
 }

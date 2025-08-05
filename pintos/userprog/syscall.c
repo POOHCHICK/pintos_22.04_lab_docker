@@ -5,10 +5,12 @@
 
 #include "intrinsic.h"
 #include "threads/flags.h"
+#include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/loader.h"
 #include "threads/thread.h"
 #include "userprog/gdt.h"
+#include "userprog/process.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -39,10 +41,115 @@ void syscall_init(void)
               FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
-/* The main system call interface */
-void syscall_handler(struct intr_frame *f UNUSED)
+void sys_halt(void)
 {
-    // TODO: Your implementation goes here.
-    printf("system call!\n");
+    power_off();
+}
+
+void sys_exit(int status)
+{
+    struct thread *curr = thread_current();
+    curr->exit_status = status;
     thread_exit();
+}
+
+pid_t sys_fork(const char *thread_name, struct intr_frame *if_)
+{
+    //     pid_t child_pid = process_fork(thread_name, if_);
+    // if (child_pid == -1)
+    // {
+    //     sys_exit(child_pid);
+    // }
+    // return child_pid;
+    return process_fork(thread_name, if_);
+}
+
+int sys_exec(const char *file)
+{
+}
+
+int sys_wait(pid_t pid)
+{
+}
+
+bool sys_create(const char *file, unsigned initial_size)
+{
+}
+
+bool sys_remove(const char *file)
+{
+}
+
+int sys_open(const char *file)
+{
+}
+
+int sys_filesize(int fd)
+{
+}
+
+int sys_read(int fd, void *buffer, unsigned length)
+{
+}
+
+int sys_write(int fd, const void *buffer, unsigned length)
+{
+}
+
+void sys_seek(int fd, unsigned position)
+{
+}
+
+unsigned sys_tell(int fd)
+{
+}
+
+void sys_close(int fd)
+{
+}
+
+int sys_dup2(int oldfd, int newfd)
+{
+}
+
+/* The main system call interface */
+void syscall_handler(struct intr_frame *f)
+{
+    switch (f->R.rax)
+    {
+        case SYS_HALT:
+            sys_halt();
+            break;
+        case SYS_EXIT:
+            sys_exit(f->R.rdi);
+            break;
+        case SYS_FORK:
+            f->R.rax = sys_fork(f->R.rdi, f);
+            break;
+        case SYS_EXEC:
+            break;
+        case SYS_WAIT:
+            f->R.rax = sys_wait(f->R.rdi);
+            break;
+        case SYS_CREATE:
+            break;
+        case SYS_OPEN:
+            break;
+        case SYS_FILESIZE:
+            break;
+        case SYS_READ:
+            break;
+        case SYS_WRITE:
+            break;
+        case SYS_SEEK:
+            break;
+        case SYS_TELL:
+            break;
+        case SYS_CLOSE:
+            break;
+        case SYS_DUP2:
+            break;
+        default:
+            break;
+    }
 }

@@ -346,6 +346,26 @@ void thread_exit(void)
     NOT_REACHED();
 }
 
+/* 우선순위가 더 높은 스레드가 준비돼 있을 때만 CPU를 양보한다. */
+void thread_yield_safe(void)
+{
+    /* 1. 인터럽트 핸들러 안이 아닌가? */
+    if (intr_context()) return;
+
+    /* 2. 준비 큐가 비어 있지 않은가?
+          (비어 있으면 list_front()를 호출할 수 없다.) */
+    if (list_empty(&ready_list)) return;
+
+    /* 3. 현재 스레드보다 더 높은 우선순위 스레드가 있는가? */
+    struct thread *front =
+        list_entry(list_front(&ready_list), struct thread, elem);
+
+    if (thread_current()->priority < front->priority)
+    {
+        thread_yield();
+    }
+}
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void thread_yield(void)

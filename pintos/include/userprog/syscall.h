@@ -8,7 +8,14 @@
 #include "lib/user/syscall.h"
 #include "threads/interrupt.h"
 
+extern struct lock filesys_lock;
+
 void syscall_init(void);
+
+void check_valid(void *vaddr);
+void check_fd(int fd);
+
+int allocate_file(struct file *open_file);
 
 void sys_halt(void) NO_RETURN;
 void sys_exit(int status) NO_RETURN;

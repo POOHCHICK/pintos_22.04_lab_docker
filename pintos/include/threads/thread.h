@@ -30,6 +30,20 @@ typedef int tid_t;
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
 
+enum fd_type
+{
+    FD_STDIN,
+    FD_STDOUT,
+    FD_FILE,
+    FD_DIR,
+};
+
+struct uni_file
+{
+    enum fd_type fd_type;
+    void *fd_ptr;
+};
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -106,6 +120,9 @@ struct thread
     struct semaphore wait_sema;
     struct semaphore exit_sema;
     int exit_status;
+
+    struct uni_file **fdt;
+    int next_fd;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem; /* List element. */

@@ -10,6 +10,7 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -244,6 +245,18 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     list_push_back(&thread_current()->child_list, &t->child_elem);
     t->parent = thread_current();
     tid = t->tid = allocate_tid();
+
+    t->fdt = malloc(2 * sizeof(struct uni_file *));
+
+    t->fdt[0] = malloc(sizeof(struct uni_file *));
+    t->fdt[0]->fd_type = FD_STDIN;
+    t->fdt[0]->fd_ptr = (intptr_t) ~0;
+
+    t->fdt[1] = malloc(sizeof(struct uni_file *));
+    t->fdt[1]->fd_type = FD_STDOUT;
+    t->fdt[1]->fd_ptr = (intptr_t) ~1;
+
+    t->next_fd = 2;
 
     /* Call the kernel_thread if it scheduled.
      * Note) rdi is 1st argument, and rsi is 2nd argument. */

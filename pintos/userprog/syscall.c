@@ -3,11 +3,15 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 
+#include "include/filesys/file.h"
+#include "include/filesys/filesys.h"
 #include "intrinsic.h"
+#include "lib/kernel/console.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/loader.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h"
@@ -28,6 +32,8 @@ void syscall_handler(struct intr_frame *);
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
+struct lock filesys_lock;
+
 void syscall_init(void)
 {
     write_msr(MSR_STAR, ((uint64_t) SEL_UCSEG - 0x10) << 48 |
@@ -39,6 +45,55 @@ void syscall_init(void)
      * mode stack. Therefore, we masked the FLAG_FL. */
     write_msr(MSR_SYSCALL_MASK,
               FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+
+    lock_init(&filesys_lock);
+}
+
+void check_valid(void *vaddr)
+{
+    struct thread *curr = thread_current();
+
+    if (!is_user_vaddr(vaddr) || vaddr == NULL ||
+        pml4_get_page(curr->pml4, vaddr) == NULL)
+    {
+        sys_exit(-1);
+    }
+}
+
+void check_fd(int fd)
+{
+    struct thread *curr = thread_current();
+
+    if (fd < 0 || fd == NULL || (int) fd >= curr->next_fd)
+    {
+        sys_exit(-1);
+    }
+}
+
+int allocate_file(struct file *open_file)
+{
+    struct thread *curr = thread_current();
+    int idx = 0;
+
+    while (idx != curr->next_fd)
+    {
+        if (curr->fdt[idx] == NULL)
+        {
+            curr->fdt[idx] = malloc(sizeof(struct uni_file *));
+            curr->fdt[idx]->fd_type = FD_FILE;
+            curr->fdt[idx]->fd_ptr = open_file;
+
+            return idx;
+        }
+        idx++;
+    }
+
+    realloc(curr->fdt, ((curr->next_fd + 1) * sizeof(struct uni_file *)));
+    curr->fdt[curr->next_fd] = malloc(sizeof(struct uni_file *));
+    curr->fdt[curr->next_fd]->fd_type = FD_FILE;
+    curr->fdt[curr->next_fd]->fd_ptr = open_file;
+
+    return curr->next_fd++;
 }
 
 void sys_halt(void)
@@ -74,6 +129,9 @@ int sys_wait(pid_t pid)
 
 bool sys_create(const char *file, unsigned initial_size)
 {
+    check_valid(file);
+
+    return filesys_create(file, initial_size);
 }
 
 bool sys_remove(const char *file)
@@ -82,18 +140,77 @@ bool sys_remove(const char *file)
 
 int sys_open(const char *file)
 {
+    check_valid(file);
+
+    struct file *open_file = filesys_open(file);
+
+    if (open_file == NULL)
+    {
+        return -1;
+    }
+
+    return allocate_file(open_file);
 }
 
 int sys_filesize(int fd)
 {
+    check_fd(fd);
+
+    struct thread *curr = thread_current();
+    struct file *file = curr->fdt[fd]->fd_ptr;
+    return file_length(file);
 }
 
 int sys_read(int fd, void *buffer, unsigned length)
 {
+    check_valid(buffer);
+    check_fd(fd);
+
+    if (fd == 1)
+    {
+        return -1;
+    }
+
+    struct thread *curr = thread_current();
+    struct file *reading_file = curr->fdt[fd]->fd_ptr;
+
+    if (reading_file == NULL)
+    {
+        return -1;
+    }
+
+    off_t bytes_read = file_read(reading_file, buffer, length);
+
+    return bytes_read;
 }
 
 int sys_write(int fd, const void *buffer, unsigned length)
 {
+    check_valid(buffer);
+    check_fd(fd);
+
+    if (fd == 0)
+    {
+        return -1;
+    }
+
+    if (fd == 1)
+    {
+        putbuf(buffer, length);
+        return length;
+    }
+
+    struct thread *curr = thread_current();
+    struct file *file = curr->fdt[fd]->fd_ptr;
+
+    if (file == NULL)
+    {
+        return -1;
+    }
+
+    off_t bytes_written = file_write(file, buffer, length);
+
+    return bytes_written;
 }
 
 void sys_seek(int fd, unsigned position)
@@ -106,6 +223,22 @@ unsigned sys_tell(int fd)
 
 void sys_close(int fd)
 {
+    /*
+     * 주어진 fd로 file descriptor table에서 file을 찾아온다.
+     * 그 파일을 file_close에 넣어준다.
+     * file_close이후
+     * fd_type을 FD_FREE로 만들고
+     * fd_ptr을 NULL로 만들어준다
+     * */
+    check_fd(fd);
+
+    struct thread *curr = thread_current();
+    struct file *closing_file = curr->fdt[fd]->fd_ptr;
+
+    file_close(closing_file);
+
+    free(curr->fdt[fd]);
+    curr->fdt[fd] = NULL;
 }
 
 int sys_dup2(int oldfd, int newfd)
@@ -132,14 +265,19 @@ void syscall_handler(struct intr_frame *f)
             f->R.rax = sys_wait(f->R.rdi);
             break;
         case SYS_CREATE:
+            f->R.rax = sys_create(f->R.rdi, f->R.rsi);
             break;
         case SYS_OPEN:
+            f->R.rax = sys_open(f->R.rdi);
             break;
         case SYS_FILESIZE:
+            f->R.rax = sys_filesize(f->R.rdi);
             break;
         case SYS_READ:
+            f->R.rax = sys_read(f->R.rdi, f->R.rsi, f->R.rdx);
             break;
         case SYS_WRITE:
+            f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);
             break;
         case SYS_SEEK:
             break;

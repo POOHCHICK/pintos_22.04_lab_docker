@@ -125,6 +125,7 @@ int sys_exec(const char *file)
 
 int sys_wait(pid_t pid)
 {
+    return process_wait(pid);
 }
 
 bool sys_create(const char *file, unsigned initial_size)

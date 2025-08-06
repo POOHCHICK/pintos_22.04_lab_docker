@@ -74,6 +74,22 @@ static void initd(void *f_name)
     NOT_REACHED();
 }
 
+struct thread *process_get_child(tid_t child_tid)
+{
+    for (struct list_elem *e = list_begin(&thread_current()->child_list);
+         e != list_end(&thread_current()->child_list); e = list_next(e))
+    {
+        struct thread *child = list_entry(e, struct thread, child_elem);
+
+        if (child->tid == child_tid)
+        {
+            return child;
+        }
+    }
+
+    return NULL;
+}
+
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t process_fork(const char *name, struct intr_frame *if_)
@@ -89,7 +105,9 @@ tid_t process_fork(const char *name, struct intr_frame *if_)
         return child_tid;
     }
 
-    sema_down(&parent->fork_sema);
+    struct thread *child = process_get_child(child_tid);
+
+    sema_down(&child->fork_sema);
 
     return child_tid;
 }
@@ -216,22 +234,6 @@ int process_exec(void *f_name)
     NOT_REACHED();
 }
 
-struct thread *process_get_child(tid_t child_tid)
-{
-    for (struct list_elem *e = list_begin(&thread_current()->child_list);
-         e != list_end(&thread_current()->child_list); e = list_next(e))
-    {
-        struct thread *child = list_entry(e, struct thread, child_elem);
-
-        if (child->tid == child_tid)
-        {
-            return child;
-        }
-    }
-
-    return NULL;
-}
-
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
  * exception), returns -1.  If TID is invalid or if it was not a
@@ -253,7 +255,7 @@ int process_wait(tid_t child_tid UNUSED)
 
     sema_up(&child->exit_sema);
 
-    return child_tid;
+    return child->exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */

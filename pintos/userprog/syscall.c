@@ -149,7 +149,9 @@ int sys_open(const char *file)
         return -1;
     }
 
-    return allocate_file(open_file);
+    int valid_fd = allocate_file(open_file);
+
+    return valid_fd;
 }
 
 int sys_filesize(int fd)

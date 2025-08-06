@@ -35,7 +35,22 @@
         "util.h": "c",
         "stddef.h": "c",
         "main.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "functional": "c",
+        "array": "c",
+        "concepts": "c",
+        "deque": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "memory": "c",
+        "string_view": "c",
+        "ostream": "c",
+        "streambuf": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "intr-stubs.h": "c",
+        "debug.h": "c"
     },
     "better-comments.tags": [
         {

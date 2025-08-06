@@ -77,8 +77,9 @@ static void initd(void *f_name)
 
 struct thread *process_get_child(tid_t child_tid)
 {
-    for (struct list_elem *e = list_begin(&thread_current()->child_list);
-         e != list_end(&thread_current()->child_list); e = list_next(e))
+    struct thread *curr = thread_current();
+    for (struct list_elem *e = list_begin(&curr->child_list);
+         e != list_end(&curr->child_list); e = list_next(e))
     {
         struct thread *child = list_entry(e, struct thread, child_elem);
 
@@ -192,6 +193,20 @@ static void __do_fork(void *aux)
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
 
+    realloc(current->fdt, (parent->next_fd) * sizeof(struct uni_file *));
+
+    for (int i = 2; i < parent->next_fd; i++)
+    {
+        if (parent->fdt[i] != NULL)
+        {
+            current->fdt[i] = malloc(sizeof(struct uni_file *));
+
+            current->fdt[i]->fd_type = parent->fdt[i]->fd_type;
+            current->fdt[i]->fd_ptr = file_duplicate(parent->fdt[i]->fd_ptr);
+        }
+    }
+    current->next_fd = parent->next_fd;
+
     process_init();
 
     /* Finally, switch to the newly created process. */
@@ -254,6 +269,13 @@ int process_wait(tid_t child_tid UNUSED)
 
     sema_down(&child->wait_sema);
 
+    if (child->exit_status == -1)
+    {
+        return -1;
+    }
+
+    list_remove(&child->child_elem);
+
     sema_up(&child->exit_sema);
 
     return child->exit_status;
@@ -268,11 +290,6 @@ void process_exit(void)
     sema_up(&curr->wait_sema);
 
     sema_down(&curr->exit_sema);
-
-    if (lock_held_by_current_thread(&filesys_lock))
-    {
-        lock_release(&filesys_lock);
-    }
 
     process_cleanup();
 }

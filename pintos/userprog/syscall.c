@@ -132,7 +132,14 @@ bool sys_create(const char *file, unsigned initial_size)
 {
     check_valid(file);
 
-    return filesys_create(file, initial_size);
+    if (filesys_create(file, initial_size))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 bool sys_remove(const char *file)
@@ -143,7 +150,9 @@ int sys_open(const char *file)
 {
     check_valid(file);
 
+    lock_acquire(&filesys_lock);
     struct file *open_file = filesys_open(file);
+    lock_release(&filesys_lock);
 
     if (open_file == NULL)
     {
@@ -182,7 +191,9 @@ int sys_read(int fd, void *buffer, unsigned length)
         return -1;
     }
 
+    lock_acquire(&filesys_lock);
     off_t bytes_read = file_read(reading_file, buffer, length);
+    lock_release(&filesys_lock);
 
     return bytes_read;
 }
@@ -211,7 +222,9 @@ int sys_write(int fd, const void *buffer, unsigned length)
         return -1;
     }
 
+    lock_acquire(&filesys_lock);
     off_t bytes_written = file_write(file, buffer, length);
+    lock_release(&filesys_lock);
 
     return bytes_written;
 }

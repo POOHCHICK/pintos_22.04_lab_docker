@@ -10,6 +10,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "include/userprog/syscall.h"
 #include "intrinsic.h"
 #include "lib/string.h"
 #include "threads/flags.h"
@@ -268,6 +269,11 @@ void process_exit(void)
 
     sema_down(&curr->exit_sema);
 
+    if (lock_held_by_current_thread(&filesys_lock))
+    {
+        lock_release(&filesys_lock);
+    }
+
     process_cleanup();
 }
 
@@ -399,6 +405,8 @@ static bool load(const char *file_name, struct intr_frame *if_)
     if (t->pml4 == NULL) goto done;
     process_activate(thread_current());
 
+    lock_acquire(&filesys_lock);
+
     /* Open executable file. */
     file = filesys_open(file_name);
     if (file == NULL)
@@ -521,6 +529,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
 done:
     /* We arrive here whether the load is successful or not. */
     file_close(file);
+    lock_release(&filesys_lock);
     return success;
 }
 

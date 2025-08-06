@@ -478,21 +478,18 @@ static bool load(const char *file_name, struct intr_frame *if_)
         args_start_addr[i] = if_->rsp;
     }
 
-    size_t pad_size = 8 - (if_->rsp % 8);
+    size_t pad_size = if_->rsp % 8;
 
-    if (pad_size)
-    {
-        if_->rsp -= pad_size;
-        memset(if_->rsp, 0, pad_size);
-    }
+    if_->rsp -= pad_size;
+    memset(if_->rsp, 0, pad_size);
 
     if_->rsp -= 8;
-    memset(if_->rsp - 8, "\0", 8);
+    memset(if_->rsp, NULL, 8);
 
     for (int i = argc - 1; i >= 0; i--)
     {
         if_->rsp -= 8;
-        if_->rsp = args_start_addr[i];
+        memcpy(if_->rsp, &args_start_addr[i], 8);
     }
 
     if_->R.rdi = argc;
@@ -500,7 +497,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
 
     /* set fake return address */
     if_->rsp -= 8;
-    memset(if_->rsp - 8, "\0", 8);
+    memset(if_->rsp, NULL, 8);
 
     /* Start address. */
     if_->rip = ehdr.e_entry;

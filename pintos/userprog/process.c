@@ -198,7 +198,11 @@ static void __do_fork(void *aux)
 
     for (int i = 2; i < parent->next_fd; i++)
     {
-        if (parent->fdt[i] != NULL)
+        if (parent->fdt[i] == NULL)
+        {
+            current->fdt[i] = NULL;
+        }
+        else if (parent->fdt[i] != NULL)
         {
             current->fdt[i] = malloc(sizeof(struct uni_file *));
 
@@ -289,7 +293,7 @@ void process_exit(void)
     int fd_num = 0;
 
     file_close(curr->executing_file);
-    
+
     while (fd_num != curr->next_fd)
     {
         if (curr->fdt[fd_num] != NULL)

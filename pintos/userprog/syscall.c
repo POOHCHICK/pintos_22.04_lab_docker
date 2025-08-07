@@ -286,9 +286,9 @@ void sys_close(int fd)
     }
 
     struct file *closing_file = curr->fdt[fd]->fd_ptr;
+
     file_close(closing_file);
 
-    free(curr->fdt[fd]);
     curr->fdt[fd] = NULL;
 }
 

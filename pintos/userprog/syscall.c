@@ -154,6 +154,11 @@ bool sys_create(const char *file, unsigned initial_size)
 
 bool sys_remove(const char *file)
 {
+    check_valid(file);
+
+    bool file_remove_result = filesys_remove(file);
+
+    return file_remove_result;
 }
 
 int sys_open(const char *file)
@@ -168,6 +173,8 @@ int sys_open(const char *file)
     {
         return -1;
     }
+
+    file_deny_write(open_file);
 
     int valid_fd = allocate_file(open_file);
 
@@ -232,19 +239,42 @@ int sys_write(int fd, const void *buffer, unsigned length)
         return -1;
     }
 
-    lock_acquire(&filesys_lock);
-    off_t bytes_written = file_write(file, buffer, length);
-    lock_release(&filesys_lock);
+    if (curr->executing_file == file)
+    {
+        lock_acquire(&filesys_lock);
+        file_allow_write(file);
+        off_t bytes_written = file_write(file, buffer, length);
+        file_deny_write(file);
+        lock_release(&filesys_lock);
 
-    return bytes_written;
+        return bytes_written;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 void sys_seek(int fd, unsigned position)
 {
+    check_fd(fd);
+
+    struct thread *curr = thread_current();
+    struct file *file = curr->fdt[fd]->fd_ptr;
+
+    file_seek(file, position);
 }
 
 unsigned sys_tell(int fd)
 {
+    check_fd(fd);
+
+    struct thread *curr = thread_current();
+    struct file *file = curr->fdt[fd]->fd_ptr;
+
+    off_t file_pos = file_tell(file);
+
+    return file_pos;
 }
 
 void sys_close(int fd)
@@ -307,10 +337,13 @@ void syscall_handler(struct intr_frame *f)
             f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);
             break;
         case SYS_SEEK:
+            sys_seek(f->R.rdi, f->R.rsi);
             break;
         case SYS_TELL:
+            f->R.rax = sys_tell(f->R.rdi);
             break;
         case SYS_CLOSE:
+            sys_close(f->R.rdi);
             break;
         case SYS_DUP2:
             break;

@@ -504,6 +504,10 @@ static bool load(const char *file_name, struct intr_frame *if_)
     /* Set up arguments on user stack */
     setup_argument(argc, argv, if_);
 
+    /* 실행 파일에 대한 쓰기 권한 거부 세팅 */
+    file_deny_write(file);
+    thread_current()->executing_file = file;
+
     /* Start address. */
     if_->rip = ehdr.e_entry;
 
@@ -511,7 +515,6 @@ static bool load(const char *file_name, struct intr_frame *if_)
 
 done:
     /* We arrive here whether the load is successful or not. */
-    file_close(file);
     return success;
 }
 

@@ -288,6 +288,8 @@ void process_exit(void)
     struct thread *curr = thread_current();
     int fd_num = 0;
 
+    file_close(curr->executing_file);
+    
     while (fd_num != curr->next_fd)
     {
         if (curr->fdt[fd_num] != NULL)

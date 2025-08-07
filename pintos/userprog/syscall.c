@@ -279,8 +279,13 @@ void sys_close(int fd)
     check_fd(fd);
 
     struct thread *curr = thread_current();
-    struct file *closing_file = curr->fdt[fd]->fd_ptr;
 
+    if (curr->fdt[fd] == NULL)
+    {
+        return;
+    }
+
+    struct file *closing_file = curr->fdt[fd]->fd_ptr;
     file_close(closing_file);
 
     free(curr->fdt[fd]);

@@ -193,7 +193,8 @@ static void __do_fork(void *aux)
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
 
-    realloc(current->fdt, (parent->next_fd) * sizeof(struct uni_file *));
+    current->fdt =
+        realloc(current->fdt, (parent->next_fd) * sizeof(struct uni_file *));
 
     for (int i = 2; i < parent->next_fd; i++)
     {
@@ -285,6 +286,33 @@ int process_wait(tid_t child_tid UNUSED)
 void process_exit(void)
 {
     struct thread *curr = thread_current();
+    int fd_num = 0;
+
+    while (fd_num != curr->next_fd)
+    {
+        if (curr->fdt[fd_num] != NULL)
+        {
+            if (fd_num == 0)
+            {
+                curr->fdt[fd_num] = NULL;
+                free(curr->fdt[fd_num]);
+            }
+            else if (fd_num == 1)
+            {
+                curr->fdt[fd_num] = NULL;
+                free(curr->fdt[fd_num]);
+            }
+            else
+            {
+                struct file *closing_file = curr->fdt[fd_num]->fd_ptr;
+                file_close(closing_file);
+                curr->fdt[fd_num] = NULL;
+                free(curr->fdt[fd_num]);
+            }
+        }
+
+        fd_num++;
+    }
 
     sema_up(&curr->wait_sema);
 

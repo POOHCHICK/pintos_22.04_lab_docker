@@ -90,7 +90,8 @@ int allocate_file(struct file *open_file)
         idx++;
     }
 
-    realloc(curr->fdt, ((curr->next_fd + 1) * sizeof(struct uni_file *)));
+    curr->fdt =
+        realloc(curr->fdt, ((curr->next_fd + 1) * sizeof(struct uni_file *)));
     curr->fdt[curr->next_fd] = malloc(sizeof(struct uni_file *));
     curr->fdt[curr->next_fd]->fd_type = FD_FILE;
     curr->fdt[curr->next_fd]->fd_ptr = open_file;
@@ -174,8 +175,6 @@ int sys_open(const char *file)
         return -1;
     }
 
-    file_deny_write(open_file);
-
     int valid_fd = allocate_file(open_file);
 
     return valid_fd;
@@ -239,20 +238,11 @@ int sys_write(int fd, const void *buffer, unsigned length)
         return -1;
     }
 
-    if (curr->executing_file == file)
-    {
-        lock_acquire(&filesys_lock);
-        file_allow_write(file);
-        off_t bytes_written = file_write(file, buffer, length);
-        file_deny_write(file);
-        lock_release(&filesys_lock);
+    lock_acquire(&filesys_lock);
+    off_t bytes_written = file_write(file, buffer, length);
+    lock_release(&filesys_lock);
 
-        return bytes_written;
-    }
-    else
-    {
-        return 0;
-    }
+    return bytes_written;
 }
 
 void sys_seek(int fd, unsigned position)

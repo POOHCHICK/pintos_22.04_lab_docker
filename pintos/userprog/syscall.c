@@ -106,10 +106,7 @@ void sys_exit(int status)
     struct thread *curr = thread_current();
     curr->exit_status = status;
 
-    if (lock_held_by_current_thread(&filesys_lock))
-    {
-        lock_release(&filesys_lock);
-    }
+    printf("%s: exit(%d)\n", curr->name, curr->exit_status);
 
     thread_exit();
 }

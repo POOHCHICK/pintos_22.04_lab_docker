@@ -285,7 +285,6 @@ int process_wait(tid_t child_tid UNUSED)
 void process_exit(void)
 {
     struct thread *curr = thread_current();
-    printf("%s: exit(%d)\n", curr->name, curr->exit_status);
 
     sema_up(&curr->wait_sema);
 
@@ -389,6 +388,8 @@ struct ELF64_PHDR
 #define Phdr ELF64_PHDR
 
 static bool setup_stack(struct intr_frame *if_);
+static void parse_file_name(char *file_name, int *argc, char *argv[]);
+static void setup_argument(int argc, char *argv[], struct intr_frame *if_);
 static bool validate_segment(const struct Phdr *, struct file *);
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
@@ -411,21 +412,16 @@ static bool load(const char *file_name, struct intr_frame *if_)
     char *token;
     int argc = 0;
 
-    for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
-         token = strtok_r(NULL, " ", &save_ptr))
-    {
-        argv[argc++] = token;
-    }
+    parse_file_name(file_name, &argc, argv);
 
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create();
     if (t->pml4 == NULL) goto done;
     process_activate(thread_current());
 
-    lock_acquire(&filesys_lock);
-
     /* Open executable file. */
     file = filesys_open(file_name);
+
     if (file == NULL)
     {
         printf("load: %s: open failed\n", file_name);
@@ -506,37 +502,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
     if (!setup_stack(if_)) goto done;
 
     /* Set up arguments on user stack */
-
-    char *args_start_addr[128];
-
-    for (int i = argc - 1; i >= 0; i--)
-    {
-        size_t args_len = strlen(argv[i]) + 1;
-        if_->rsp = if_->rsp - args_len;
-        memcpy(if_->rsp, argv[i], args_len);
-        args_start_addr[i] = if_->rsp;
-    }
-
-    size_t pad_size = if_->rsp % 8;
-
-    if_->rsp -= pad_size;
-    memset(if_->rsp, 0, pad_size);
-
-    if_->rsp -= 8;
-    memset(if_->rsp, NULL, 8);
-
-    for (int i = argc - 1; i >= 0; i--)
-    {
-        if_->rsp -= 8;
-        memcpy(if_->rsp, &args_start_addr[i], 8);
-    }
-
-    if_->R.rdi = argc;
-    if_->R.rsi = if_->rsp;
-
-    /* set fake return address */
-    if_->rsp -= 8;
-    memset(if_->rsp, NULL, 8);
+    setup_argument(argc, argv, if_);
 
     /* Start address. */
     if_->rip = ehdr.e_entry;
@@ -546,7 +512,6 @@ static bool load(const char *file_name, struct intr_frame *if_)
 done:
     /* We arrive here whether the load is successful or not. */
     file_close(file);
-    lock_release(&filesys_lock);
     return success;
 }
 
@@ -669,6 +634,42 @@ static bool setup_stack(struct intr_frame *if_)
             palloc_free_page(kpage);
     }
     return success;
+}
+
+static void parse_file_name(char *file_name, int *argc, char *argv[])
+{
+    char *token, *save_ptr;
+    for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+         token = strtok_r(NULL, " ", &save_ptr))
+    {
+        argv[(*argc)++] = token;
+    }
+}
+static void setup_argument(int argc, char *argv[], struct intr_frame *if_)
+{
+    char *args_start_addr[128];
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        size_t args_len = strlen(argv[i]) + 1;
+        if_->rsp = if_->rsp - args_len;
+        memcpy(if_->rsp, argv[i], args_len);
+        args_start_addr[i] = if_->rsp;
+    }
+    size_t pad_size = if_->rsp % 8;
+    if_->rsp -= pad_size;
+    memset(if_->rsp, 0, pad_size);
+    if_->rsp -= 8;
+    memset(if_->rsp, NULL, 8);
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        if_->rsp -= 8;
+        memcpy(if_->rsp, &args_start_addr[i], 8);
+    }
+    if_->R.rdi = argc;
+    if_->R.rsi = if_->rsp;
+    /* set fake return address */
+    if_->rsp -= 8;
+    memset(if_->rsp, NULL, 8);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

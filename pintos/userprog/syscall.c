@@ -5,6 +5,8 @@
 
 #include "include/filesys/file.h"
 #include "include/filesys/filesys.h"
+#include "include/lib/string.h"
+#include "include/threads/palloc.h"
 #include "intrinsic.h"
 #include "lib/kernel/console.h"
 #include "threads/flags.h"
@@ -113,17 +115,22 @@ void sys_exit(int status)
 
 pid_t sys_fork(const char *thread_name, struct intr_frame *if_)
 {
-    //     pid_t child_pid = process_fork(thread_name, if_);
-    // if (child_pid == -1)
-    // {
-    //     sys_exit(child_pid);
-    // }
-    // return child_pid;
     return process_fork(thread_name, if_);
 }
 
 int sys_exec(const char *file)
 {
+    check_valid(file);
+
+    void *new_page = palloc_get_page(PAL_ASSERT | PAL_ZERO);
+    strlcpy(new_page, file, strlen(file) + 1);
+
+    int exec_result = process_exec(new_page);
+
+    if (exec_result == -1)
+    {
+        sys_exit(exec_result);
+    }
 }
 
 int sys_wait(pid_t pid)
@@ -279,6 +286,7 @@ void syscall_handler(struct intr_frame *f)
             f->R.rax = sys_fork(f->R.rdi, f);
             break;
         case SYS_EXEC:
+            f->R.rax = sys_exec(f->R.rdi);
             break;
         case SYS_WAIT:
             f->R.rax = sys_wait(f->R.rdi);

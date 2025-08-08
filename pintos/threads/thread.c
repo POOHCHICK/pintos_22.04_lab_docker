@@ -246,17 +246,15 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     t->parent = thread_current();
     tid = t->tid = allocate_tid();
 
-    t->fdt = malloc(2 * sizeof(struct uni_file *));
+    t->fdt = palloc_get_page(PAL_ZERO | PAL_USER);
 
-    t->fdt[0] = malloc(sizeof(struct uni_file *));
+    t->fdt[0] = malloc(sizeof(struct uni_file));
     t->fdt[0]->fd_type = FD_STDIN;
-    t->fdt[0]->fd_ptr = (intptr_t) ~0;
+    t->fdt[0]->data.standard = (intptr_t) ~0;
 
-    t->fdt[1] = malloc(sizeof(struct uni_file *));
+    t->fdt[1] = malloc(sizeof(struct uni_file));
     t->fdt[1]->fd_type = FD_STDOUT;
-    t->fdt[1]->fd_ptr = (intptr_t) ~1;
-
-    t->next_fd = 2;
+    t->fdt[1]->data.standard = (intptr_t) ~1;
 
     /* Call the kernel_thread if it scheduled.
      * Note) rdi is 1st argument, and rsi is 2nd argument. */

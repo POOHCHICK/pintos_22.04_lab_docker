@@ -193,10 +193,7 @@ static void __do_fork(void *aux)
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
 
-    current->fdt =
-        realloc(current->fdt, (parent->next_fd) * sizeof(struct uni_file *));
-
-    for (int i = 2; i < parent->next_fd; i++)
+    for (int i = 2; i < 512; i++)
     {
         if (parent->fdt[i] == NULL)
         {
@@ -204,13 +201,12 @@ static void __do_fork(void *aux)
         }
         else if (parent->fdt[i] != NULL)
         {
-            current->fdt[i] = malloc(sizeof(struct uni_file *));
-
+            current->fdt[i] = malloc(sizeof(struct uni_file));
             current->fdt[i]->fd_type = parent->fdt[i]->fd_type;
-            current->fdt[i]->fd_ptr = file_duplicate(parent->fdt[i]->fd_ptr);
+            current->fdt[i]->data.file =
+                file_duplicate(parent->fdt[i]->data.file);
         }
     }
-    current->next_fd = parent->next_fd;
 
     process_init();
 
@@ -290,35 +286,31 @@ int process_wait(tid_t child_tid UNUSED)
 void process_exit(void)
 {
     struct thread *curr = thread_current();
-    int fd_num = 0;
 
     file_close(curr->executing_file);
 
-    while (fd_num != curr->next_fd)
+    for (int fd_num = 0; fd_num < 512; fd_num++)
     {
         if (curr->fdt[fd_num] != NULL)
         {
             if (fd_num == 0)
             {
-                curr->fdt[fd_num] = NULL;
                 free(curr->fdt[fd_num]);
             }
             else if (fd_num == 1)
             {
-                curr->fdt[fd_num] = NULL;
                 free(curr->fdt[fd_num]);
             }
             else
             {
-                struct file *closing_file = curr->fdt[fd_num]->fd_ptr;
+                struct file *closing_file = curr->fdt[fd_num]->data.file;
                 file_close(closing_file);
-                curr->fdt[fd_num] = NULL;
                 free(curr->fdt[fd_num]);
             }
         }
-
-        fd_num++;
     }
+
+    palloc_free_page(curr->fdt);
 
     sema_up(&curr->wait_sema);
 

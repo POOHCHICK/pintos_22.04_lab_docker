@@ -41,7 +41,12 @@ enum fd_type
 struct uni_file
 {
     enum fd_type fd_type;
-    void *fd_ptr;
+    union
+    {
+        struct file *file;
+        struct dir *directory;
+        void *standard;
+    } data;
 };
 
 /* A kernel thread or user process.
@@ -122,7 +127,6 @@ struct thread
     int exit_status;
 
     struct uni_file **fdt;
-    int next_fd;
 
     struct file *executing_file;
 

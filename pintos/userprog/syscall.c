@@ -66,7 +66,7 @@ void check_fd(int fd)
 {
     struct thread *curr = thread_current();
 
-    if (fd < 0 || fd == NULL || (int) fd >= curr->next_fd)
+    if (fd < 0 || fd == NULL || (int) fd >= 512)
     {
         sys_exit(-1);
     }
@@ -75,28 +75,20 @@ void check_fd(int fd)
 int allocate_file(struct file *open_file)
 {
     struct thread *curr = thread_current();
-    int idx = 0;
 
-    while (idx != curr->next_fd)
+    for (int i = 0; i < 512; i++)
     {
-        if (curr->fdt[idx] == NULL)
+        if (curr->fdt[i] == NULL)
         {
-            curr->fdt[idx] = malloc(sizeof(struct uni_file *));
-            curr->fdt[idx]->fd_type = FD_FILE;
-            curr->fdt[idx]->fd_ptr = open_file;
+            curr->fdt[i] = malloc(sizeof(struct uni_file));
+            curr->fdt[i]->fd_type = FD_FILE;
+            curr->fdt[i]->data.file = open_file;
 
-            return idx;
+            return i;
         }
-        idx++;
     }
 
-    curr->fdt =
-        realloc(curr->fdt, ((curr->next_fd + 1) * sizeof(struct uni_file *)));
-    curr->fdt[curr->next_fd] = malloc(sizeof(struct uni_file *));
-    curr->fdt[curr->next_fd]->fd_type = FD_FILE;
-    curr->fdt[curr->next_fd]->fd_ptr = open_file;
-
-    return curr->next_fd++;
+    return -1;
 }
 
 void sys_halt(void)
@@ -175,9 +167,9 @@ int sys_open(const char *file)
         return -1;
     }
 
-    int valid_fd = allocate_file(open_file);
+    int fd_num = allocate_file(open_file);
 
-    return valid_fd;
+    return fd_num;
 }
 
 int sys_filesize(int fd)
@@ -185,7 +177,7 @@ int sys_filesize(int fd)
     check_fd(fd);
 
     struct thread *curr = thread_current();
-    struct file *file = curr->fdt[fd]->fd_ptr;
+    struct file *file = curr->fdt[fd]->data.file;
     return file_length(file);
 }
 
@@ -200,7 +192,7 @@ int sys_read(int fd, void *buffer, unsigned length)
     }
 
     struct thread *curr = thread_current();
-    struct file *reading_file = curr->fdt[fd]->fd_ptr;
+    struct file *reading_file = curr->fdt[fd]->data.file;
 
     if (reading_file == NULL)
     {
@@ -231,7 +223,7 @@ int sys_write(int fd, const void *buffer, unsigned length)
     }
 
     struct thread *curr = thread_current();
-    struct file *file = curr->fdt[fd]->fd_ptr;
+    struct file *file = curr->fdt[fd]->data.file;
 
     if (file == NULL)
     {
@@ -250,7 +242,7 @@ void sys_seek(int fd, unsigned position)
     check_fd(fd);
 
     struct thread *curr = thread_current();
-    struct file *file = curr->fdt[fd]->fd_ptr;
+    struct file *file = curr->fdt[fd]->data.file;
 
     file_seek(file, position);
 }
@@ -260,7 +252,7 @@ unsigned sys_tell(int fd)
     check_fd(fd);
 
     struct thread *curr = thread_current();
-    struct file *file = curr->fdt[fd]->fd_ptr;
+    struct file *file = curr->fdt[fd]->data.file;
 
     off_t file_pos = file_tell(file);
 
@@ -285,7 +277,7 @@ void sys_close(int fd)
         return;
     }
 
-    struct file *closing_file = curr->fdt[fd]->fd_ptr;
+    struct file *closing_file = curr->fdt[fd]->data.file;
 
     file_close(closing_file);
 

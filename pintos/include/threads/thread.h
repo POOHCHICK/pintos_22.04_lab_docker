@@ -30,6 +30,8 @@ typedef int tid_t;
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
 
+#define MAX_FD_NUM 512
+
 enum fd_type
 {
     FD_STDIN,

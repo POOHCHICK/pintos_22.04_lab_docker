@@ -66,7 +66,7 @@ void check_fd(int fd)
 {
     struct thread *curr = thread_current();
 
-    if (fd < 0 || fd == NULL || (int) fd >= 512)
+    if (fd < 0 || fd == NULL || (int) fd >= MAX_FD_NUM)
     {
         sys_exit(-1);
     }
@@ -76,7 +76,7 @@ int allocate_file(struct file *open_file)
 {
     struct thread *curr = thread_current();
 
-    for (int i = 0; i < 512; i++)
+    for (int i = 0; i < MAX_FD_NUM; i++)
     {
         if (curr->fdt[i] == NULL)
         {
@@ -168,6 +168,12 @@ int sys_open(const char *file)
     }
 
     int fd_num = allocate_file(open_file);
+
+    /* ! 실패 원인!!!!!!!!! */
+    if (fd_num == -1)
+    {
+        file_close(open_file);
+    }
 
     return fd_num;
 }

@@ -446,6 +446,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
     process_activate(thread_current());
 
     /* Open executable file. */
+    lock_acquire(&filesys_lock);
     file = filesys_open(file_name);
 
     if (file == NULL)
@@ -541,6 +542,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
 
 done:
     /* We arrive here whether the load is successful or not. */
+    lock_release(&filesys_lock);
     return success;
 }
 

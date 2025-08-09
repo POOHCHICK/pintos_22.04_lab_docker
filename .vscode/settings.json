@@ -50,7 +50,9 @@
         "tuple": "c",
         "type_traits": "c",
         "intr-stubs.h": "c",
-        "debug.h": "c"
+        "debug.h": "c",
+        "string.h": "c",
+        "inspect.h": "c"
     },
     "better-comments.tags": [
         {

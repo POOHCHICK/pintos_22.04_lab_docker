@@ -160,7 +160,7 @@ void disk_init(void)
                 identify_ata_device(&c->devices[dev_no]);
     }
 
-    /* DO NOT MODIFY BELOW LINES. */
+    /* ! DO NOT MODIFY BELOW LINES. */
     register_disk_inspect_intr();
 }
 

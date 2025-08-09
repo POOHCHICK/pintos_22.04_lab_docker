@@ -14,7 +14,7 @@ void vm_init(void)
     pagecache_init();
 #endif
     register_inspect_intr();
-    /* DO NOT MODIFY UPPER LINES. */
+    /* ! DO NOT MODIFY UPPER LINES. */
     /* TODO: Your code goes here. */
 }
 
@@ -144,8 +144,8 @@ bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
     return vm_do_claim_page(page);
 }
 
-/* 페이지를 해제합니다.
- * DO NOT MODIFY THIS FUNCTION. */
+/* 페이지를 해제합니다. */
+/* ! DO NOT MODIFY THIS FUNCTION. */
 void vm_dealloc_page(struct page *page)
 {
     destroy(page);

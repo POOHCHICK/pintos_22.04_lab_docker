@@ -620,10 +620,46 @@ static bool validate_segment(const struct Phdr *phdr, struct file *file)
     return true;
 }
 
+static void parse_file_name(char *file_name, int *argc, char *argv[])
+{
+    char *token, *save_ptr;
+    for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+         token = strtok_r(NULL, " ", &save_ptr))
+    {
+        argv[(*argc)++] = token;
+    }
+}
+static void setup_argument(int argc, char *argv[], struct intr_frame *if_)
+{
+    char *args_start_addr[128];
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        size_t args_len = strlen(argv[i]) + 1;
+        if_->rsp = if_->rsp - args_len;
+        memcpy(if_->rsp, argv[i], args_len);
+        args_start_addr[i] = if_->rsp;
+    }
+    size_t pad_size = if_->rsp % 8;
+    if_->rsp -= pad_size;
+    memset(if_->rsp, 0, pad_size);
+    if_->rsp -= 8;
+    memset(if_->rsp, NULL, 8);
+    for (int i = argc - 1; i >= 0; i--)
+    {
+        if_->rsp -= 8;
+        memcpy(if_->rsp, &args_start_addr[i], 8);
+    }
+    if_->R.rdi = argc;
+    if_->R.rsi = if_->rsp;
+    /* set fake return address */
+    if_->rsp -= 8;
+    memset(if_->rsp, NULL, 8);
+}
+
 #ifndef VM
-/* Codes of this block will be ONLY USED DURING project 2.
- * If you want to implement the function for whole project 2, implement it
- * outside of #ifndef macro. */
+/* 이 블록 안의 코드는 프로젝트 2에서만 사용됩니다.
+ * 만약 프로젝트 2 전체에서 이 함수를 구현하고 싶다면,
+ * #ifndef 매크로 바깥쪽에 구현하세요. */
 
 /* load() helpers. */
 static bool install_page(void *upage, void *kpage, bool writable);
@@ -705,57 +741,22 @@ static bool setup_stack(struct intr_frame *if_)
     return success;
 }
 
-static void parse_file_name(char *file_name, int *argc, char *argv[])
-{
-    char *token, *save_ptr;
-    for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
-         token = strtok_r(NULL, " ", &save_ptr))
-    {
-        argv[(*argc)++] = token;
-    }
-}
-static void setup_argument(int argc, char *argv[], struct intr_frame *if_)
-{
-    char *args_start_addr[128];
-    for (int i = argc - 1; i >= 0; i--)
-    {
-        size_t args_len = strlen(argv[i]) + 1;
-        if_->rsp = if_->rsp - args_len;
-        memcpy(if_->rsp, argv[i], args_len);
-        args_start_addr[i] = if_->rsp;
-    }
-    size_t pad_size = if_->rsp % 8;
-    if_->rsp -= pad_size;
-    memset(if_->rsp, 0, pad_size);
-    if_->rsp -= 8;
-    memset(if_->rsp, NULL, 8);
-    for (int i = argc - 1; i >= 0; i--)
-    {
-        if_->rsp -= 8;
-        memcpy(if_->rsp, &args_start_addr[i], 8);
-    }
-    if_->R.rdi = argc;
-    if_->R.rsi = if_->rsp;
-    /* set fake return address */
-    if_->rsp -= 8;
-    memset(if_->rsp, NULL, 8);
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
- * virtual address KPAGE to the page table.
- * If WRITABLE is true, the user process may modify the page;
- * otherwise, it is read-only.
- * UPAGE must not already be mapped.
- * KPAGE should probably be a page obtained from the user pool
- * with palloc_get_page().
- * Returns true on success, false if UPAGE is already mapped or
- * if memory allocation fails. */
+/* 사용자 가상 주소 UPAGE를 커널 가상 주소 KPAGE에
+ * 매핑을 추가하여 페이지 테이블에 등록합니다.
+ * WRITABLE이 true이면 사용자 프로세스가 해당 페이지를
+ * 수정할 수 있으며, 그렇지 않으면 읽기 전용입니다.
+ * UPAGE는 이미 매핑되어 있으면 안 됩니다.
+ * KPAGE는 palloc_get_page()를 사용하여
+ * 사용자 풀에서 얻은 페이지여야 합니다.
+ * 성공하면 true를 반환하고, UPAGE가 이미 매핑되어 있거나
+ * 메모리 할당에 실패하면 false를 반환합니다.
+ */
 static bool install_page(void *upage, void *kpage, bool writable)
 {
     struct thread *t = thread_current();
 
-    /* Verify that there's not already a page at that virtual
-     * address, then map our page there. */
+    /* 해당 가상 주소에 이미 페이지가 없는지 확인한 뒤, 우리의 페이지를 그
+     * 위치에 매핑합니다. */
     return (pml4_get_page(t->pml4, upage) == NULL &&
             pml4_set_page(t->pml4, upage, kpage, writable));
 }
@@ -766,25 +767,24 @@ static bool install_page(void *upage, void *kpage, bool writable)
 
 static bool lazy_load_segment(struct page *page, void *aux)
 {
-    /* TODO: Load the segment from the file */
-    /* TODO: This called when the first page fault occurs on address VA. */
-    /* TODO: VA is available when calling this function. */
+    /* TODO: 파일에서 세그먼트를 로드합니다. */
+    /* TODO: 이 함수는 주소 VA에서 첫 페이지 폴트가 발생했을 때 호출됩니다. */
+    /* TODO: 이 함수를 호출할 때 VA를 사용할 수 있습니다. */
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/* FILE에서 OFS 오프셋 위치부터 시작하는 세그먼트를 UPAGE 주소에 로드합니다.
+ * 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 다음과 같이 초기화됩니다:
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - READ_BYTES 바이트는 FILE의 OFS 위치에서 읽어와 UPAGE에 저장합니다.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+ * - UPAGE + READ_BYTES 위치부터 ZERO_BYTES 바이트는 0으로 채웁니다.
  *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
+ * 이 함수로 초기화된 페이지는 WRITABLE이 true이면 사용자 프로세스가 쓸 수
+ * 있어야 하며, false이면 읽기 전용이어야 합니다.
  *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 메모리 할당 오류나 디스크 읽기 오류가 발생하지 않으면 true를 반환하고,
+ * 그렇지 않으면 false를 반환합니다.
+ */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable)
@@ -795,13 +795,13 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     while (read_bytes > 0 || zero_bytes > 0)
     {
-        /* Do calculate how to fill this page.
-         * We will read PAGE_READ_BYTES bytes from FILE
-         * and zero the final PAGE_ZERO_BYTES bytes. */
+        /* 이 페이지를 어떻게 채울지 계산합니다.
+         * FILE에서 PAGE_READ_BYTES 바이트를 읽고,
+         * 마지막 PAGE_ZERO_BYTES 바이트를 0으로 채웁니다. */
         size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-        /* TODO: Set up aux to pass information to the lazy_load_segment. */
+        /* TODO: aux를 설정하여 lazy_load_segment에 정보를 전달하도록 합니다. */
         void *aux = NULL;
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
                                             lazy_load_segment, aux))

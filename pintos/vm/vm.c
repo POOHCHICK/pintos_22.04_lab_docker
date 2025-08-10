@@ -1,6 +1,7 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
 #include "threads/malloc.h"
+#include "threads/mmu.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
@@ -63,21 +64,25 @@ err:
 }
 
 /* spt에서 VA를 찾아 페이지를 반환합니다. 오류가 발생하면 NULL을 반환합니다. */
-struct page *spt_find_page(struct supplemental_page_table *spt UNUSED,
-                           void *va UNUSED)
+struct page *spt_find_page(struct supplemental_page_table *spt, void *va)
 {
-    struct page *page = NULL;
-    /* TODO: Fill this function. */
+    struct page page;
+    page.va = va;
 
-    return page;
+    struct page *target_page = hash_entry(hash_find(spt->hash, &page.hash_elem),
+                                          struct page, hash_elem);
+
+    return target_page;
 }
 
 /* 검증 후 PAGE를 spt에 삽입합니다. */
-bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
-                     struct page *page UNUSED)
+bool spt_insert_page(struct supplemental_page_table *spt, struct page *page)
 {
     int succ = false;
-    /* TODO: Fill this function. */
+    if (hash_find(spt->hash, &page->hash_elem) == NULL)
+    {
+        succ = true;
+    }
 
     return succ;
 }
@@ -114,8 +119,14 @@ static struct frame *vm_evict_frame(void)
  * 이 함수는 프레임을 제거하여 사용 가능한 메모리 공간을 확보합니다. */
 static struct frame *vm_get_frame(void)
 {
-    struct frame *frame = NULL;
-    /* TODO: Fill this function. */
+    struct frame *frame = malloc(sizeof(struct frame));
+    void *kva = palloc_get_page(PAL_USER);
+    if (kva == NULL)
+    {
+        PANIC("jinwoo");
+    }
+
+    frame->kva = kva;
 
     ASSERT(frame != NULL);
     ASSERT(frame->page == NULL);
@@ -155,8 +166,13 @@ void vm_dealloc_page(struct page *page)
 /* VA에 할당된 페이지를 확보(claim)합니다. */
 bool vm_claim_page(void *va)
 {
-    struct page *page = NULL;
-    /* TODO: Fill this function */
+    struct thread *curr = thread_current();
+    struct page *page = spt_find_page(&curr->spt, va);
+
+    if (page == NULL)
+    {
+        return false;
+    }
 
     return vm_do_claim_page(page);
 }
@@ -170,15 +186,37 @@ static bool vm_do_claim_page(struct page *page)
     frame->page = page;
     page->frame = frame;
 
-    /* TODO: 페이지의 가상 주소(VA)를 프레임의 물리 주소(PA)에
+    /* 페이지의 가상 주소(VA)를 프레임의 물리 주소(PA)에
      * 매핑하도록 페이지 테이블 엔트리를 삽입합니다. */
+    struct thread *curr = thread_current();
+    if (!pml4_set_page(curr->pml4, page->va, frame->kva, true))
+    {
+        free(page);
+        return false;
+    }
 
     return swap_in(page, frame->kva);
+}
+
+uint64_t hash_hash_func(const struct hash_elem *e, void *aux)
+{
+    struct page *p = hash_entry(e, struct page, hash_elem);
+    return hash_bytes(p->va, sizeof(p->va));
+}
+
+bool hash_less_func(const struct hash_elem *a, const struct hash_elem *b,
+                    void *aux)
+{
+    struct page *page_a = hash_entry(a, struct page, hash_elem);
+    struct page *page_b = hash_entry(b, struct page, hash_elem);
+
+    return page_a->va < page_b->va;
 }
 
 /* 새로운 보조 페이지 테이블을 초기화합니다. */
 void supplemental_page_table_init(struct supplemental_page_table *spt)
 {
+    hash_init(spt->hash, hash_hash_func, hash_less_func, NULL);
 }
 
 /* src에서 dst로 보조 페이지 테이블을 복사합니다. */

@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 
+#include "include/lib/kernel/hash.h"
 #include "threads/palloc.h"
 
 enum vm_type
@@ -49,6 +50,9 @@ struct page
     struct frame *frame; /* 프레임에 대한 역참조 */
 
     /* Your implementation */
+    struct hash_elem hash_elem;
+
+    bool is_writable;
 
     /* 타입별 데이터는 union에 묶입니다.
      * 각 함수는 현재 union을 자동으로 감지합니다. */
@@ -92,6 +96,7 @@ struct page_operations
  * 모든 설계는 전적으로 여러분에게 달려 있습니다. */
 struct supplemental_page_table
 {
+    struct hash *hash;
 };
 
 #include "threads/thread.h"

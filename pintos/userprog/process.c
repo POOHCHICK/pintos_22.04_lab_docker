@@ -232,7 +232,7 @@ static void __do_fork(void *aux)
         }
     }
 
-    // process_init();
+    process_init();
 
     sema_up(&current->fork_sema);
 

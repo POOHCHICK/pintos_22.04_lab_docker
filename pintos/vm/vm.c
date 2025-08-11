@@ -69,8 +69,13 @@ struct page *spt_find_page(struct supplemental_page_table *spt, void *va)
     struct page page;
     page.va = va;
 
-    struct page *target_page = hash_entry(hash_find(spt->hash, &page.hash_elem),
-                                          struct page, hash_elem);
+    /* 찾는 페이지가 없다면 NULL 반환 */
+    struct hash_elem *e = hash_find(spt->hash, &page.hash_elem);
+    if (e == NULL){
+        return NULL;
+    }
+    /* hash_entry에 NULL 값은 페이지폴트 예상됨 */
+    struct page *target_page = hash_entry(e, struct page, hash_elem);
 
     return target_page;
 }
@@ -79,7 +84,7 @@ struct page *spt_find_page(struct supplemental_page_table *spt, void *va)
 bool spt_insert_page(struct supplemental_page_table *spt, struct page *page)
 {
     int succ = false;
-    if (hash_find(spt->hash, &page->hash_elem) == NULL)
+    if (hash_insert(spt->hash, &page->hash_elem) == NULL)
     {
         succ = true;
     }
@@ -189,8 +194,9 @@ static bool vm_do_claim_page(struct page *page)
     /* 페이지의 가상 주소(VA)를 프레임의 물리 주소(PA)에
      * 매핑하도록 페이지 테이블 엔트리를 삽입합니다. */
     struct thread *curr = thread_current();
-    if (!pml4_set_page(curr->pml4, page->va, frame->kva, true))
+    if (!pml4_set_page(curr->pml4, page->va, frame->kva, page->is_writable))
     {
+        free(frame);
         free(page);
         return false;
     }
@@ -201,7 +207,7 @@ static bool vm_do_claim_page(struct page *page)
 uint64_t hash_hash_func(const struct hash_elem *e, void *aux)
 {
     struct page *p = hash_entry(e, struct page, hash_elem);
-    return hash_bytes(p->va, sizeof(p->va));
+    return hash_bytes(&p->va, sizeof(p->va));
 }
 
 bool hash_less_func(const struct hash_elem *a, const struct hash_elem *b,

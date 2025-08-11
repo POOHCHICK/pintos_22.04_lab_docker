@@ -120,6 +120,15 @@ struct thread
     struct list donor_list;
     struct lock *wait_on_lock; /* 현재 스레드가 어떤 lock을 대기하고 있는지에
                                   대한 정보 */
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem; /* List element. */
+    struct list_elem donor_elem;
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint64_t *pml4; /* Page map level 4 */
+
     struct list child_list;
     struct thread *parent;
     struct intr_frame *parent_if;
@@ -132,14 +141,7 @@ struct thread
 
     struct file *executing_file;
 
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem; /* List element. */
-    struct list_elem donor_elem;
     struct list_elem child_elem;
-
-#ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint64_t *pml4; /* Page map level 4 */
 #endif
 #ifdef VM
     /* Table for whole virtual memory owned by thread. */

@@ -664,20 +664,21 @@ static void setup_argument(int argc, char *argv[], struct intr_frame *if_)
 /* load() helpers. */
 static bool install_page(void *upage, void *kpage, bool writable);
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/* 파일 FILE의 오프셋 OFS에서 시작하는 세그먼트를
+ * 주소 UPAGE에 로드한다. 총 READ_BYTES + ZERO_BYTES 바이트의
+ * 가상 메모리를 다음과 같이 초기화한다:
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - UPAGE에서 READ_BYTES 바이트는 FILE에서
+ *   오프셋 OFS부터 읽어 온다.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+ * - UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0으로 채운다.
  *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
+ * 이 함수가 초기화하는 페이지들은 WRITABLE이 true이면
+ * 사용자 프로세스가 쓰기 가능해야 하며, 그렇지 않으면
+ * 읽기 전용이어야 한다.
  *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 성공하면 true를, 메모리 할당 오류나 디스크 읽기 오류가
+ * 발생하면 false를 반환한다. */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable)
@@ -689,17 +690,17 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     file_seek(file, ofs);
     while (read_bytes > 0 || zero_bytes > 0)
     {
-        /* Do calculate how to fill this page.
-         * We will read PAGE_READ_BYTES bytes from FILE
-         * and zero the final PAGE_ZERO_BYTES bytes. */
+        /* 이 페이지를 어떻게 채울지 계산한다.
+         * FILE에서 PAGE_READ_BYTES 바이트를 읽고
+         * 마지막 PAGE_ZERO_BYTES 바이트는 0으로 채운다. */
         size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-        /* Get a page of memory. */
+        /* 메모리에서 페이지 하나를 확보한다. */
         uint8_t *kpage = palloc_get_page(PAL_USER);
         if (kpage == NULL) return false;
 
-        /* Load this page. */
+        /* 이 페이지를 로드한다. */
         if (file_read(file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
             palloc_free_page(kpage);
@@ -707,7 +708,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
         }
         memset(kpage + page_read_bytes, 0, page_zero_bytes);
 
-        /* Add the page to the process's address space. */
+        /* 페이지를 프로세스의 주소 공간에 추가한다. */
         if (!install_page(upage, kpage, writable))
         {
             printf("fail\n");
@@ -715,7 +716,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
             return false;
         }
 
-        /* Advance. */
+        /* 진행(다음 페이지로 이동). */
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
@@ -772,19 +773,21 @@ static bool lazy_load_segment(struct page *page, void *aux)
     /* TODO: 이 함수를 호출할 때 VA를 사용할 수 있습니다. */
 }
 
-/* FILE에서 OFS 오프셋 위치부터 시작하는 세그먼트를 UPAGE 주소에 로드합니다.
- * 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 다음과 같이 초기화됩니다:
+/* 파일 FILE의 오프셋 OFS에서 시작하는 세그먼트를
+ * 주소 UPAGE에 로드한다. 총 READ_BYTES + ZERO_BYTES 바이트의
+ * 가상 메모리를 다음과 같이 초기화한다:
  *
- * - READ_BYTES 바이트는 FILE의 OFS 위치에서 읽어와 UPAGE에 저장합니다.
+ * - UPAGE에서 READ_BYTES 바이트는 FILE에서
+ *   오프셋 OFS부터 읽어 온다.
  *
- * - UPAGE + READ_BYTES 위치부터 ZERO_BYTES 바이트는 0으로 채웁니다.
+ * - UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0으로 채운다.
  *
- * 이 함수로 초기화된 페이지는 WRITABLE이 true이면 사용자 프로세스가 쓸 수
- * 있어야 하며, false이면 읽기 전용이어야 합니다.
+ * 이 함수가 초기화하는 페이지들은 WRITABLE이 true이면
+ * 사용자 프로세스가 쓰기 가능해야 하며, 그렇지 않으면
+ * 읽기 전용이어야 한다.
  *
- * 메모리 할당 오류나 디스크 읽기 오류가 발생하지 않으면 true를 반환하고,
- * 그렇지 않으면 false를 반환합니다.
- */
+ * 성공하면 true를, 메모리 할당 오류나 디스크 읽기 오류가
+ * 발생하면 false를 반환한다. */
 static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
                          uint32_t read_bytes, uint32_t zero_bytes,
                          bool writable)

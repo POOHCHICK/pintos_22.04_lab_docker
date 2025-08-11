@@ -263,10 +263,11 @@ bool pml4_set_page(uint64_t *pml4, void *upage, void *kpage, bool rw)
     return pte != NULL;
 }
 
-/* Marks user virtual page UPAGE "not present" in page
- * directory PD.  Later accesses to the page will fault.  Other
- * bits in the page table entry are preserved.
- * UPAGE need not be mapped. */
+/* 페이지 디렉터리 PD에서 사용자 가상 페이지 UPAGE를
+ * '존재하지 않음(not present)' 상태로 표시합니다.
+ * 이후 해당 페이지에 대한 접근은 페이지 폴트를 일으킵니다.
+ * 페이지 테이블 엔트리의 다른 비트들은 그대로 보존됩니다.
+ * UPAGE는 매핑되어 있지 않아도 됩니다. */
 void pml4_clear_page(uint64_t *pml4, void *upage)
 {
     uint64_t *pte;

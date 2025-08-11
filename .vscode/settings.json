@@ -52,7 +52,9 @@
         "intr-stubs.h": "c",
         "debug.h": "c",
         "string.h": "c",
-        "inspect.h": "c"
+        "inspect.h": "c",
+        "palloc.h": "c",
+        "page_cache.h": "c"
     },
     "better-comments.tags": [
         {

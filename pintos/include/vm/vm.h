@@ -39,6 +39,13 @@ struct thread;
 
 #define VM_TYPE(type) ((type) &7)
 
+struct lazy_load_info
+{
+    struct file *file_to_load;
+    off_t ofs;
+    size_t page_read_bytes;
+};
+
 /* "page"의 표현.
  * 이것은 일종의 "부모 클래스"이며, uninit_page, file_page, anon_page,
  * 그리고 페이지 캐시(project4)라는 네 가지 "자식 클래스"를 가집니다.
@@ -52,7 +59,7 @@ struct page
     /* Your implementation */
     struct hash_elem hash_elem;
 
-    bool is_writable;
+    bool writable;
 
     /* 타입별 데이터는 union에 묶입니다.
      * 각 함수는 현재 union을 자동으로 감지합니다. */
@@ -96,7 +103,7 @@ struct page_operations
  * 모든 설계는 전적으로 여러분에게 달려 있습니다. */
 struct supplemental_page_table
 {
-    struct hash *hash;
+    struct hash hash_table;
 };
 
 #include "threads/thread.h"

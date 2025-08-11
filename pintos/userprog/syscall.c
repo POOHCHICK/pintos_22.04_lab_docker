@@ -55,8 +55,7 @@ void check_valid(void *vaddr)
 {
     struct thread *curr = thread_current();
 
-    if (!is_user_vaddr(vaddr) || vaddr == NULL ||
-        pml4_get_page(curr->pml4, vaddr) == NULL)
+    if (!is_user_vaddr(vaddr) || vaddr == NULL)
     {
         sys_exit(-1);
     }

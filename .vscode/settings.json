@@ -54,7 +54,8 @@
         "string.h": "c",
         "inspect.h": "c",
         "palloc.h": "c",
-        "page_cache.h": "c"
+        "page_cache.h": "c",
+        "hash.h": "c"
     },
     "better-comments.tags": [
         {

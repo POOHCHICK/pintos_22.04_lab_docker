@@ -22,6 +22,9 @@ void vm_init(void)
 /* 페이지의 타입을 가져옵니다.
  * 이 함수는 페이지가 초기화된 이후 해당 페이지의 타입을 알고 싶을 때
  * 유용합니다. 현재 이 함수는 완전히 구현되어 있습니다. */
+/* Get the type of the page. This function is useful if you want to know the
+ * type of the page after it will be initialized.
+ * This function is fully implemented now. */
 enum vm_type page_get_type(struct page *page)
 {
     int ty = VM_TYPE(page->operations->type);
@@ -295,11 +298,67 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst,
                                   struct supplemental_page_table *src)
 {
+    struct hash_iterator i;
+
+    hash_first(&i, &src->hash_table);
+    while (hash_next(&i))
+    {
+        struct page *parent_page =
+            hash_entry(hash_cur(&i), struct page, hash_elem);
+        enum vm_type future_type = page_get_type(
+            parent_page); /* uninit 페이지가 미래에 될 타입을 가져온다. */
+        void *upage = parent_page->va;
+        bool writable = parent_page->writable;
+
+        if (VM_TYPE(parent_page->operations->type) == VM_UNINIT)
+        {
+            struct lazy_load_info *aux =
+                (struct lazy_load_info *) malloc(sizeof(struct lazy_load_info));
+            memcpy(aux, parent_page->uninit.aux, sizeof(struct lazy_load_info));
+
+            if (!vm_alloc_page_with_initializer(future_type, upage, writable,
+                                                parent_page->uninit.init, aux))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (!vm_alloc_page(future_type, upage, writable))
+            {
+                return false;
+            }
+
+            if (!vm_claim_page(upage))
+            {
+                return false;
+            }
+
+            struct page *child_page = spt_find_page(dst, upage);
+            memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
+            child_page->frame->page = child_page;
+        }
+    }
+
+    return true;
 }
 
-/* 보조 페이지 테이블이 보유한 자원을 해제합니다. */
+void hash_destructor(struct hash_elem *e, void *aux)
+{
+    struct page *page_to_destroy = hash_entry(e, struct page, hash_elem);
+
+    destroy(page_to_destroy); /* 실제 file type에 따른 destroy 함수 호출*/
+    free(page_to_destroy);    /* 호출자의 몫임 */
+}
+
+/* 보조 페이지 테이블이 보유하고 있던 모든 리소스를 해제합니다.
+ *이 함수는 프로세스가 종료될 때 호출됩니다 (userprog/process.c의
+ *process_exit()에서). 페이지 테이블의 각 페이지 항목을 반복하며 테이블 내
+ *페이지에 대해 destroy(page)를 호출해야 합니다. 이 함수에서는 실제 페이지
+ *테이블(pml4)과 물리 메모리(palloc으로 할당된 메모리)에 대해 걱정할 필요가
+ *없습니다; 호출자가 보조 페이지 테이블이 정리된 후 이를 정리합니다. */
 void supplemental_page_table_kill(struct supplemental_page_table *spt)
 {
-    /* TODO: 스레드가 보유한 모든 supplemental_page_table을 제거하고,
-     * TODO: 수정된 모든 내용을 저장소에 기록합니다. */
+    /* TODO: 수정된 모든 내용을 저장소에 기록합니다. */
+    hash_destroy(&spt->hash_table, hash_destructor);
 }

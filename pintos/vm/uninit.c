@@ -61,7 +61,10 @@ static bool uninit_initialize(struct page *page, void *kva)
  * PAGE는 호출자가 해제합니다. */
 static void uninit_destroy(struct page *page)
 {
-    struct uninit_page *uninit UNUSED = &page->uninit;
-    /* TODO: 이 함수를 구현하세요.
-     * TODO: 수행할 작업이 없다면 그냥 반환하세요. */
+    struct uninit_page *uninit = &page->uninit;
+
+    /* supplemental_page_table_copy에서 malloc으로 할당해준 aux를 해제 */
+    free(uninit->aux);
+
+    return;
 }

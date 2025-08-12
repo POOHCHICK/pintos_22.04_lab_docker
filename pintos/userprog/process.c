@@ -483,6 +483,7 @@ static bool load(const char *file_name, struct intr_frame *if_)
     t->pml4 = pml4_create();
     if (t->pml4 == NULL) goto done;
     process_activate(thread_current());
+    supplemental_page_table_init(&thread_current()->spt);
 
     /* Open executable file. */
     lock_acquire(&filesys_lock);

@@ -137,7 +137,14 @@ static void page_fault(struct intr_frame *f)
        잠시만 꺼 두었었다 ). */
     intr_enable();
 
-    /* 원인을 판별한다. */
+    /* page fault의 원인을 판별한다. */
+    /* not_present:
+     * 페이지가 메모리에 존재하지 않아서 발생한 폴트 (not-present page)인가
+     * 페이지는 존재하지만 권한 위반으로 발생한 폴트 (writing to read-only
+     * page)인가? */
+    /* write: 어떤 접근으로 인해 발생한 page fault인가? */
+    /* user: user mode에서 발생한 page fault인가?
+     * 아니면 커널 모드에서 발생한 page fault인가? */
     not_present = (f->error_code & PF_P) == 0;
     write = (f->error_code & PF_W) != 0;
     user = (f->error_code & PF_U) != 0;

@@ -257,7 +257,7 @@ static bool vm_do_claim_page(struct page *page)
     /* 페이지의 가상 주소(VA)를 프레임의 물리 주소(PA)에
      * 매핑하도록 페이지 테이블 엔트리를 삽입합니다. */
     struct thread *curr = thread_current();
-    if (!pml4_set_page(curr->pml4, page->va, frame->kva, true))
+    if (!pml4_set_page(curr->pml4, page->va, frame->kva, page->writable))
     {
         free(frame);
         return false;

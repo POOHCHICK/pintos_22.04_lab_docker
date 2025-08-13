@@ -151,7 +151,11 @@ bool sys_create(const char *file, unsigned initial_size)
 {
     check_valid(file);
 
-    if (filesys_create(file, initial_size))
+    lock_acquire(&filesys_lock);
+    bool file_create_result = filesys_create(file, initial_size);
+    lock_release(&filesys_lock);
+
+    if (file_create_result)
     {
         return true;
     }
@@ -324,6 +328,21 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
     }
 
     if (addr != pg_round_down(addr))
+    {
+        return NULL;
+    }
+
+    if (offset != pg_ofs(offset))
+    {
+        return NULL;
+    }
+
+    if (is_kernel_vaddr(addr))
+    {
+        return NULL;
+    }
+
+    if ((uintptr_t) addr + (size_t) length < (uintptr_t) addr)
     {
         return NULL;
     }

@@ -51,6 +51,23 @@ void syscall_init(void)
     lock_init(&filesys_lock);
 }
 
+void check_writable(void *vaddr)
+{
+    struct thread *curr = thread_current();
+    struct page *p = NULL;
+
+    p = spt_find_page(&curr->spt, vaddr);
+    if (p == NULL)
+    {
+        return;
+    }
+
+    if (!p->writable)
+    {
+        sys_exit(-1);
+    }
+}
+
 void check_valid(void *vaddr)
 {
     struct thread *curr = thread_current();
@@ -188,6 +205,7 @@ int sys_filesize(int fd)
 
 int sys_read(int fd, void *buffer, unsigned length)
 {
+    check_writable(buffer);
     check_valid(buffer);
     check_fd(fd);
 
@@ -213,6 +231,7 @@ int sys_read(int fd, void *buffer, unsigned length)
 
 int sys_write(int fd, const void *buffer, unsigned length)
 {
+    check_writable(buffer);
     check_valid(buffer);
     check_fd(fd);
 
@@ -296,6 +315,10 @@ int sys_dup2(int oldfd, int newfd)
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f)
 {
+    /* user mode에서 kernel 모드로 전환 시 rsp 설정 */
+    struct thread *curr = thread_current();
+    curr->rsp = f->rsp;
+
     switch (f->R.rax)
     {
         case SYS_HALT:

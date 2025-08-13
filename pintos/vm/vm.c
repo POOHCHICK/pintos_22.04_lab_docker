@@ -173,13 +173,85 @@ static struct frame *vm_get_frame(void)
 }
 
 /* 스택을 확장합니다. */
-static void vm_stack_growth(void *addr UNUSED)
+static void vm_stack_growth(void *addr)
 {
+    vm_alloc_page(VM_ANON | VM_MARKER_0, pg_round_down(addr), true);
 }
 
 /* 쓰기 보호된 페이지에서 발생한 폴트를 처리합니다. */
 static bool vm_handle_wp(struct page *page UNUSED)
 {
+}
+
+enum sg_type
+{
+    GENERAL,
+    PUSH
+};
+
+/**
+ * 스택 포인터가 1MB 스택 제한 범위 내에 있는지 검증합니다.
+ *
+ * @param rsp 검증할 스택 포인터 위치
+ * @param type 스택 접근 타입 (GENERAL 또는 PUSH)
+ * @return 스택 포인터가 유효 범위 내에 있으면 true, 그렇지 않으면 false
+ */
+static bool is_stack_pointer_valid(void *rsp, enum sg_type type)
+{
+    switch (type)
+    {
+        case GENERAL:
+            /* 현재 스택 포인터가 1MB 제한 내에 있는지 자격 검증
+             * (rsp >= 0x47380000 조건으로 스택 오버플로우 방지) */
+            return rsp >= USER_STACK_END;
+        case PUSH:
+            /* PUSH 동작 후 스택 포인터 위치가 1MB 제한 내에 있을지 미리 검증
+             * (rsp-8 >= 0x47380000 조건으로 PUSH 실행 가능성 사전 확인) */
+            /* x86-64 PUSH 명령어는 8바이트 스택 포인터 이동을 수반하므로
+             * 실행 전에 rsp-8 위치가 USER_STACK_END(0x47380000) 이상인지
+             * 미리 검증하여 스택 오버플로우를 방지 */
+            return rsp - 8 >= USER_STACK_END;
+        default:
+            PANIC("invalid stack growth type!");
+    }
+}
+
+/**
+ * 스택 성장을 위한 메모리 접근이 유효한지 검증합니다.
+ *
+ * @param rsp 현재 스택 포인터 위치
+ * @param addr page fault가 발생한 메모리 주소
+ * @param type 스택 접근 타입 (GENERAL 또는 PUSH)
+ * @return 유효한 접근이면 true, 그렇지 않으면 false
+ */
+static bool is_addr_access_valid(void *rsp, void *addr, enum sg_type type)
+{
+    switch (type)
+    {
+        case GENERAL:
+            /* 일반적인 스택 접근: 스택 포인터보다 높은 주소 접근만 허용
+             * (스택은 아래쪽으로 성장하므로 rsp 위쪽 접근은 유효함) */
+            return addr >= rsp;
+        case PUSH:
+            /* PUSH 명령어 접근: x86-64 PUSH는 스택 포인터 조정 전에
+             * rsp-8 위치의 접근 권한을 확인하므로 정확히 rsp-8에서만 유효 */
+            return addr == rsp - 8;
+        default:
+            PANIC("invalid stack growth type!");
+    }
+}
+
+/**
+ * 접근 주소가 사용자 스택의 상한선을 넘지 않는지 검증합니다.
+ *
+ * @param addr 검증할 메모리 주소
+ * @return 주소가 USER_STACK 이하이면 true, 그렇지 않으면 false
+ */
+static bool is_addr_valid(void *addr)
+{
+    /* 접근 주소가 USER_STACK(0x47480000) 이하인지 확인
+     * (스택 상한선을 벗어난 접근을 방지하여 메모리 보안 유지) */
+    return addr <= USER_STACK;
 }
 
 /* 폴트를 검증합니다. - 성공하면 true를 반환합니다. */
@@ -188,6 +260,7 @@ bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
 {
     struct supplemental_page_table *spt = &thread_current()->spt;
     struct page *page = NULL;
+    void *rsp = f->rsp;
 
     if (addr == NULL)
     {
@@ -201,16 +274,39 @@ bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
 
     if (not_present)
     {
-        struct page *page = spt_find_page(spt, addr);
+        if (!user)
+        {
+            /* kenel 모드에서 page fault 발생 시, 이전에 syscall에서 설정해
+             * 두었던 rsp 값을유효한 rsp 값으로 설정 */
+            rsp = thread_current()->rsp;
+        }
+
+        if (is_stack_pointer_valid(rsp, GENERAL) &&
+            is_addr_access_valid(rsp, addr, GENERAL) && is_addr_valid(addr))
+        {
+            /* 일반적인 stack 확장 경우. - stack growth signal로 판단한다 */
+            vm_stack_growth(addr);
+        }
+        else if (is_stack_pointer_valid(rsp, PUSH) &&
+                 is_addr_access_valid(rsp, addr, PUSH) && is_addr_valid(addr))
+        {
+            /* stack의 push 동작 시 - stack growth signal로 판단한다 */
+            vm_stack_growth(addr);
+        }
+
+        page = spt_find_page(spt, addr);
         if (page == NULL)
         {
+            /* spt에 페이지가 존재하지 않으면 처리 실패. */
             return false;
         }
 
         if (write == true && page->writable == false)
         {
+            /* spt에 존재하는 page가 writable하지 않으면 처리 실패. */
             return false;
         }
+
         return vm_do_claim_page(page);
     }
     else

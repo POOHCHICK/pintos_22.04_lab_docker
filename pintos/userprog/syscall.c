@@ -308,6 +308,53 @@ void sys_close(int fd)
     curr->fdt[fd] = NULL;
 }
 
+void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+    struct thread *curr = thread_current();
+
+    struct file *f = curr->fdt[fd]->data.file;
+    if (f == NULL)
+    {
+        return NULL;
+    }
+
+    if (file_length(f) == 0)
+    {
+        return NULL;
+    }
+
+    if (addr != pg_round_down(addr))
+    {
+        return NULL;
+    }
+
+    if (addr == 0)
+    {
+        return NULL;
+    }
+
+    if (length == 0)
+    {
+        return NULL;
+    }
+
+    if (spt_find_page(&curr->spt, addr) != NULL)
+    {
+        return NULL;
+    }
+
+    if (fd == 0 || fd == 1)
+    {
+        return NULL;
+    }
+
+    return do_mmap(addr, length, writable, f, offset);
+}
+
+void sys_munmap(void *addr)
+{
+}
+
 int sys_dup2(int oldfd, int newfd)
 {
 }
@@ -359,6 +406,13 @@ void syscall_handler(struct intr_frame *f)
             break;
         case SYS_CLOSE:
             sys_close(f->R.rdi);
+            break;
+        case SYS_MMAP:
+            f->R.rax =
+                sys_mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+            break;
+        case SYS_MUNMAP:
+            sys_munmap(f->R.rdi);
             break;
         case SYS_DUP2:
             break;

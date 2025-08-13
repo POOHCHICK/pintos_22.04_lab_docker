@@ -55,8 +55,7 @@ void check_valid(void *vaddr)
 {
     struct thread *curr = thread_current();
 
-    if (!is_user_vaddr(vaddr) || vaddr == NULL ||
-        pml4_get_page(curr->pml4, vaddr) == NULL)
+    if (!is_user_vaddr(vaddr) || vaddr == NULL)
     {
         sys_exit(-1);
     }
@@ -297,6 +296,8 @@ int sys_dup2(int oldfd, int newfd)
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f)
 {
+    thread_current()->rsp = f->rsp;
+
     switch (f->R.rax)
     {
         case SYS_HALT:

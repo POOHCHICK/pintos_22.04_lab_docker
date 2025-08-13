@@ -14,6 +14,7 @@
 static bool uninit_initialize(struct page *page, void *kva);
 static void uninit_destroy(struct page *page);
 
+/* 페이지 폴트 발생시 swap_in 호출*/
 /* ! DO NOT MODIFY this struct */
 static const struct page_operations uninit_ops = {
     .swap_in = uninit_initialize,
@@ -29,15 +30,16 @@ void uninit_new(struct page *page, void *va, vm_initializer *init,
 {
     ASSERT(page != NULL);
 
-    *page = (struct page){.operations = &uninit_ops,
-                          .va = va,
-                          .frame = NULL, /* 현재는 프레임이 없음 */
-                          .uninit = (struct uninit_page){
-                              .init = init,
-                              .type = type,
-                              .aux = aux,
-                              .page_initializer = initializer,
-                          }};
+    *page = (struct page){
+        .operations = &uninit_ops,
+        .va = va,
+        .frame = NULL, /* 현재는 프레임이 없음 */
+        .uninit = (struct uninit_page){
+            .init = init,                       // lazy load 여기서 호출
+            .type = type,
+            .aux = aux,                         // 얜 뭐누
+            .page_initializer = initializer,    // anon|file_backed init
+        }};
 }
 
 /* 첫 번째 폴트 발생 시 페이지를 초기화합니다. */

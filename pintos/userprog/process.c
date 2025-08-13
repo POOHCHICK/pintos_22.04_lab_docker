@@ -770,6 +770,38 @@ static bool lazy_load_segment(struct page *page, void *aux)
     /* TODO: 파일에서 세그먼트를 로드합니다. */
     /* TODO: 이 함수는 주소 VA에서 첫 페이지 폴트가 발생했을 때 호출됩니다. */
     /* TODO: 이 함수를 호출할 때 VA를 사용할 수 있습니다. */
+    struct load_info *load_info = aux;
+
+    /*
+     * 필요한 부분까지만 읽어오는게 lazy loading의 핵심
+     * 받아온 offset부터만 읽고 그 다음 요청시 다음 부분 읽어온다.
+     */
+    /* 1.seek pos 지정 */
+    file_seek(load_info->file, load_info->ofs);
+
+    /*
+     * 2.read_bytes 만큼 읽어온다.
+     * 읽기 실패시 페이지 지워준다.
+     */
+    int read_bytes = file_read(load_info->file, page->frame->kva,
+                               load_info->page_read_bytes);
+    if (read_bytes != load_info->page_read_bytes)
+    {
+        palloc_free_page(page->frame->kva);
+        return false;
+    }
+
+    /*
+     * 3.다 읽은 지점부터 zero_bytes로 채운다
+     * bss 영역은 0으로 초기화 필요 + 보안적 이슈 대응
+     * 실제 리눅스는 bss만 초기화함
+     */
+    memset(page->frame->kva + load_info->page_read_bytes, 0,
+           load_info->page_zero_bytes);
+
+    free(aux);
+
+    return true;
 }
 
 /* FILE에서 OFS 오프셋 위치부터 시작하는 세그먼트를 UPAGE 주소에 로드합니다.
@@ -802,7 +834,13 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
         /* TODO: aux를 설정하여 lazy_load_segment에 정보를 전달하도록 합니다. */
-        void *aux = NULL;
+        struct load_info *aux = malloc(sizeof(struct load_info));
+
+        aux->file = file;
+        aux->ofs = ofs;
+        aux->page_read_bytes = page_read_bytes;
+        aux->page_zero_bytes = page_zero_bytes;
+
         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
                                             lazy_load_segment, aux))
             return false;
@@ -811,6 +849,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
         read_bytes -= page_read_bytes;
         zero_bytes -= page_zero_bytes;
         upage += PGSIZE;
+        ofs = ofs + page_read_bytes;
     }
     return true;
 }
@@ -821,10 +860,30 @@ static bool setup_stack(struct intr_frame *if_)
     bool success = false;
     void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
 
-    /* TODO: Map the stack on stack_bottom and claim the page immediately.
-     * TODO: If success, set the rsp accordingly.
-     * TODO: You should mark the page is stack. */
-    /* TODO: Your code goes here */
+    /* TODO: stack_bottom에 스택을 매핑하고 페이지를 즉시 요청하세요.
+     * TODO: 성공하면, rsp를 그에 맞게 설정하세요.
+     * TODO: 페이지가 스택임을 표시해야 합니다. */
+
+    /*
+     * vm_alloc_page_with_initializer 호출
+     * VM_MARKER_0를 스택으로 비트로 생각하자
+     * stack은 vm_initializer - lazy load, aux가 필요없다!
+     * 이미 필요한건 다 로드함 그래서 필요가 없다!!
+     * page를 하나 할당받고 type은 anon | stack
+     * 시작 주소는 stack은 아래로 확장되니 바닥 주소로 주자
+     * 초기 uninit type이고 실제 할당이 일어나면서 initializer 호출되고
+     * anon 페이지로 변경될 예정
+     */
+    if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
+    {
+        /* 물리 메모리 매핑, 성공 여부 반환 */
+        success = vm_claim_page(stack_bottom);
+        if (success)
+        {
+            if_->rsp = USER_STACK;
+            thread_current()->stack_bottom = stack_bottom;
+        }
+    }
 
     return success;
 }

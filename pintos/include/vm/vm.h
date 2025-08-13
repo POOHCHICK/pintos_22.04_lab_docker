@@ -96,7 +96,7 @@ struct page_operations
  * 모든 설계는 전적으로 여러분에게 달려 있습니다. */
 struct supplemental_page_table
 {
-    struct hash *hash;
+    struct hash hash;
 };
 
 #include "threads/thread.h"
@@ -106,7 +106,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 void supplemental_page_table_kill(struct supplemental_page_table *spt);
 struct page *spt_find_page(struct supplemental_page_table *spt, void *va);
 bool spt_insert_page(struct supplemental_page_table *spt, struct page *page);
-void spt_remove_page(struct supplemental_page_table *spt, struct page *page);
+void spt_remove_page(struct hash_elem *e, struct page *page);
 
 void vm_init(void);
 bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
